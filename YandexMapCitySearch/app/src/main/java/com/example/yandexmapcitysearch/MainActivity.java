@@ -5,15 +5,20 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.Geometry;
 import com.yandex.mapkit.geometry.Point;
+import com.yandex.mapkit.geometry.Polyline;
 import com.yandex.mapkit.map.CameraPosition;
+import com.yandex.mapkit.map.InputListener;
 import com.yandex.mapkit.map.MapObjectCollection;
 import com.yandex.mapkit.map.MapWindow;
 import com.yandex.mapkit.map.PlacemarkMapObject;
+import com.yandex.mapkit.map.PolylineMapObject;
 import com.yandex.mapkit.map.VisibleRegionUtils;
 import com.yandex.mapkit.mapview.MapView;
 import com.yandex.mapkit.search.Response;
@@ -26,6 +31,8 @@ import com.yandex.runtime.Error;
 import com.yandex.runtime.image.ImageProvider;
 import com.yandex.mapkit.GeoObjectCollection;
 
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
     private MapView mapView;
@@ -33,11 +40,20 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private Button btnSearch;
     private SearchManager searchManager;
     private Session searchSession;
+    private Point startPoint = null;
+    private Point endPoint = null;
+    private PlacemarkMapObject startMarker;
+    private PlacemarkMapObject endMarker;
+    private PolylineMapObject routeLine;
+    private OpenRouteServiceClient orsClient;
+    private InputListener mapInputListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        orsClient = new OpenRouteServiceClient();
 
         try {
             if (BuildConfig.MAPKIT_API_KEY == null || BuildConfig.MAPKIT_API_KEY.isEmpty()) {
@@ -60,10 +76,99 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (mapView != null) {
             MapWindow mapWindow = mapView.getMapWindow();
             if (mapWindow != null) {
+
+                // Слушатель нажатий по карте
+                mapInputListener = new InputListener() {
+                    @Override
+                    public void onMapTap(com.yandex.mapkit.map.Map map, Point point) {
+                        MapObjectCollection mapObjects = map.getMapObjects();
+
+                        if (startPoint == null) {
+                            startPoint = point;
+                            startMarker = mapObjects.addPlacemark(point);
+                            Toast.makeText(MainActivity.this, "Начало маршрута выбрано", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        if (endPoint == null) {
+                            endPoint = point;
+                            endMarker = mapObjects.addPlacemark(point);
+                            Toast.makeText(MainActivity.this, "Конец маршрута выбран", Toast.LENGTH_SHORT).show();
+
+                            orsClient.getRoute(startPoint, endPoint, new OpenRouteServiceClient.ORSCallback() {
+                                @Override
+                                public void onSuccess(List<Point> routePoints) {
+                                    runOnUiThread(() -> {
+                                        if (routeLine != null) mapObjects.remove(routeLine);
+                                        Polyline poly = new Polyline(routePoints);
+                                        routeLine = mapObjects.addPolyline(poly);
+
+                                        // ==== Подгоняем камеру под весь маршрут ====
+                                        double minLat = Double.MAX_VALUE, maxLat = -Double.MAX_VALUE;
+                                        double minLon = Double.MAX_VALUE, maxLon = -Double.MAX_VALUE;
+
+                                        for (Point p : routePoints) {
+                                            if (p.getLatitude() < minLat) minLat = p.getLatitude();
+                                            if (p.getLatitude() > maxLat) maxLat = p.getLatitude();
+                                            if (p.getLongitude() < minLon) minLon = p.getLongitude();
+                                            if (p.getLongitude() > maxLon) maxLon = p.getLongitude();
+                                        }
+
+                                        double centerLat = (minLat + maxLat) / 2;
+                                        double centerLon = (minLon + maxLon) / 2;
+
+// Примерный zoom под длину маршрута
+                                        float zoom;
+                                        double latDiff = maxLat - minLat;
+                                        double lonDiff = maxLon - minLon;
+                                        double maxDiff = Math.max(latDiff, lonDiff);
+                                        if (maxDiff < 0.005) zoom = 17f;
+                                        else if (maxDiff < 0.02) zoom = 15f;
+                                        else if (maxDiff < 0.1) zoom = 13f;
+                                        else zoom = 13f;
+
+// Двигаем камеру
+                                        mapView.getMapWindow().getMap().move(
+                                                new CameraPosition(new Point(centerLat, centerLon), zoom, 0.0f, 0.0f),
+                                                new Animation(Animation.Type.SMOOTH, 1f),
+                                                null
+                                        );
+
+                                        Toast.makeText(MainActivity.this, "Маршрут построен", Toast.LENGTH_SHORT).show();
+                                    });
+                                }
+
+                                @Override
+                                public void onError(String errorMessage) {
+                                    runOnUiThread(() ->
+                                            Toast.makeText(MainActivity.this, "Ошибка маршрута: " + errorMessage, Toast.LENGTH_LONG).show()
+                                    );
+                                }
+                            });
+                            return;
+                        }
+
+                        // третий тап — сброс маршрута
+                        mapObjects.clear();
+                        startPoint = null;
+                        endPoint = null;
+                        startMarker = null;
+                        endMarker = null;
+                        routeLine = null;
+                        Toast.makeText(MainActivity.this, "Маршрут сброшен, выбери заново", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) { }
+                };
+
+                mapWindow.getMap().addInputListener(mapInputListener);
+
                 mapWindow.getMap().move(
                         new CameraPosition(new Point(55.751225, 37.62954), 10.0f, 0.0f, 0.0f),
                         new Animation(Animation.Type.SMOOTH, 1),
-                        null);
+                        null
+                );
             } else {
                 Toast.makeText(this, "Ошибка инициализации MapWindow", Toast.LENGTH_LONG).show();
                 Log.e("MainActivity", "MapWindow is null");
@@ -104,7 +209,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 }
                 searchSession = searchManager.submit(
                         query,
-                        visibleRegion,  // Восстановили visibleRegion
+                        visibleRegion,
                         new SearchOptions(),
                         this
                 );
@@ -147,8 +252,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     Toast.makeText(this, "Ошибка загрузки иконки метки", Toast.LENGTH_SHORT).show();
                 }
 
-                PlacemarkMapObject placemark = mapObjects.addPlacemark();
-                //placemark.setGeometry(resultLocation);
+                PlacemarkMapObject placemark = mapObjects.addPlacemark(resultLocation);
                 if (searchResultImageProvider != null) {
                     try {
                         placemark.setIcon(searchResultImageProvider);
@@ -191,20 +295,18 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     protected void onStart() {
         super.onStart();
         MapKitFactory.getInstance().onStart();
-        if (mapView != null) {
-            mapView.onStart();
-        }
+        if (mapView != null) mapView.onStart();
     }
 
     @Override
     protected void onStop() {
-        if (mapView != null) {
-            mapView.onStop();
+        if (mapView != null && mapView.getMapWindow() != null && mapInputListener != null) {
+            mapView.getMapWindow().getMap().removeInputListener(mapInputListener);
+            mapInputListener = null;
         }
+        if (mapView != null) mapView.onStop();
         MapKitFactory.getInstance().onStop();
-        if (searchSession != null) {
-            searchSession.cancel();
-        }
+        if (searchSession != null) searchSession.cancel();
         super.onStop();
     }
 }
