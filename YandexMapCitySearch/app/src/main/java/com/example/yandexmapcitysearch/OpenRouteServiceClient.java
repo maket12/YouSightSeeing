@@ -25,6 +25,9 @@ public class OpenRouteServiceClient {
         void onError(String errorMessage);
     }
 
+    /**
+     * Получает маршрут между двумя точками (оригинальный метод)
+     */
     public void getRoute(Point start, Point end, ORSCallback callback) {
         new Thread(() -> {
             try {
@@ -71,6 +74,88 @@ public class OpenRouteServiceClient {
 
             } catch (Exception e) {
                 Log.e("ORS", "Ошибка при запросе: " + e.getMessage());
+                callback.onError(e.getMessage());
+            }
+        }).start();
+    }
+
+    /**
+     * Получает маршрут через несколько точек (новый метод)
+     * OpenRouteService Directions API поддерживает до 50 waypoints для пешего маршрута
+     */
+    public void getMultiPointRoute(List<Point> points, ORSCallback callback) {
+        if (points == null || points.size() < 2) {
+            callback.onError("Необходимо минимум 2 точки для построения маршрута");
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                JSONObject body = new JSONObject();
+                JSONArray coords = new JSONArray();
+
+                // Добавляем все точки в массив координат
+                for (Point point : points) {
+                    coords.put(new JSONArray().put(point.getLongitude()).put(point.getLatitude()));
+                }
+
+                body.put("coordinates", coords);
+
+                Log.d("ORS", "Построение маршрута через " + points.size() + " точек");
+
+                URL url = new URL(BASE_URL);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Authorization", API_KEY);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(15000); // Увеличенный таймаут для множественных точек
+                conn.setReadTimeout(15000);
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body.toString().getBytes());
+                }
+
+                int responseCode = conn.getResponseCode();
+                if (responseCode != 200) {
+                    BufferedReader errorReader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                    StringBuilder errorResponse = new StringBuilder();
+                    String errorLine;
+                    while ((errorLine = errorReader.readLine()) != null) {
+                        errorResponse.append(errorLine);
+                    }
+                    Log.e("ORS", "HTTP Error " + responseCode + ": " + errorResponse.toString());
+                    callback.onError("Ошибка сервера: " + responseCode);
+                    return;
+                }
+
+                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    response.append(line);
+                }
+                br.close();
+
+                JSONObject jsonResponse = new JSONObject(response.toString());
+                JSONArray coordinates = jsonResponse
+                        .getJSONArray("features")
+                        .getJSONObject(0)
+                        .getJSONObject("geometry")
+                        .getJSONArray("coordinates");
+
+                List<Point> routePoints = new ArrayList<>();
+                for (int i = 0; i < coordinates.length(); i++) {
+                    JSONArray coord = coordinates.getJSONArray(i);
+                    routePoints.add(new Point(coord.getDouble(1), coord.getDouble(0)));
+                }
+
+                Log.d("ORS", "Маршрут успешно построен, точек в маршруте: " + routePoints.size());
+                callback.onSuccess(routePoints);
+
+            } catch (Exception e) {
+                Log.e("ORS", "Ошибка при запросе многоточечного маршрута: " + e.getMessage());
+                e.printStackTrace();
                 callback.onError(e.getMessage());
             }
         }).start();
