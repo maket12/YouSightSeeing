@@ -86,81 +86,82 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                         if (startPoint == null) {
                             startPoint = point;
                             startMarker = mapObjects.addPlacemark(point);
-                            Toast.makeText(MainActivity.this, "Начало маршрута выбрано", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(MainActivity.this, "Выбрана стартовая точка", Toast.LENGTH_SHORT).show();
                             return;
                         }
 
-                        if (endPoint == null) {
-                            endPoint = point;
-                            endMarker = mapObjects.addPlacemark(point);
-                            Toast.makeText(MainActivity.this, "Конец маршрута выбран", Toast.LENGTH_SHORT).show();
+                        // === Второй тап: ищем достопримечательности рядом ===
+                        GeoapifyClient geoClient = new GeoapifyClient();
+                        geoClient.getNearbyPlaces(
+                                point.getLatitude(),
+                                point.getLongitude(),
+                                new GeoapifyClient.GeoapifyCallback() {
+                                    @Override
+                                    public void onSuccess(List<GeoapifyClient.Place> places) {
+                                        runOnUiThread(() -> {
+                                            if (places.isEmpty()) {
+                                                Toast.makeText(MainActivity.this, "Нет достопримечательностей рядом", Toast.LENGTH_SHORT).show();
+                                                return;
+                                            }
 
-                            orsClient.getRoute(startPoint, endPoint, new OpenRouteServiceClient.ORSCallback() {
-                                @Override
-                                public void onSuccess(List<Point> routePoints) {
-                                    runOnUiThread(() -> {
-                                        if (routeLine != null) mapObjects.remove(routeLine);
-                                        Polyline poly = new Polyline(routePoints);
-                                        routeLine = mapObjects.addPolyline(poly);
+                                            // Ставим метки достопримечательностей
+                                            for (GeoapifyClient.Place place : places) {
+                                                PlacemarkMapObject poiMarker = mapObjects.addPlacemark(place.location);
+                                                poiMarker.setUserData(place.name);
+                                            }
 
-                                        // ==== Подгоняем камеру под весь маршрут ====
-                                        double minLat = Double.MAX_VALUE, maxLat = -Double.MAX_VALUE;
-                                        double minLon = Double.MAX_VALUE, maxLon = -Double.MAX_VALUE;
+                                            // Берём первую достопримечательность как цель маршрута
+                                            GeoapifyClient.Place target = places.get(0);
+                                            endPoint = target.location;
 
-                                        for (Point p : routePoints) {
-                                            if (p.getLatitude() < minLat) minLat = p.getLatitude();
-                                            if (p.getLatitude() > maxLat) maxLat = p.getLatitude();
-                                            if (p.getLongitude() < minLon) minLon = p.getLongitude();
-                                            if (p.getLongitude() > maxLon) maxLon = p.getLongitude();
-                                        }
+                                            orsClient.getRoute(startPoint, endPoint, new OpenRouteServiceClient.ORSCallback() {
+                                                @Override
+                                                public void onSuccess(List<Point> routePoints) {
+                                                    runOnUiThread(() -> {
+                                                        if (routeLine != null) mapObjects.remove(routeLine);
+                                                        Polyline poly = new Polyline(routePoints);
+                                                        routeLine = mapObjects.addPolyline(poly);
 
-                                        double centerLat = (minLat + maxLat) / 2;
-                                        double centerLon = (minLon + maxLon) / 2;
+                                                        mapView.getMapWindow().getMap().move(
+                                                                new CameraPosition(target.location, 14.0f, 0.0f, 0.0f),
+                                                                new Animation(Animation.Type.SMOOTH, 1f),
+                                                                null
+                                                        );
 
-// Примерный zoom под длину маршрута
-                                        float zoom;
-                                        double latDiff = maxLat - minLat;
-                                        double lonDiff = maxLon - minLon;
-                                        double maxDiff = Math.max(latDiff, lonDiff);
-                                        if (maxDiff < 0.005) zoom = 17f;
-                                        else if (maxDiff < 0.02) zoom = 15f;
-                                        else if (maxDiff < 0.1) zoom = 13f;
-                                        else zoom = 13f;
+                                                        Toast.makeText(MainActivity.this, "Маршрут к " + target.name, Toast.LENGTH_SHORT).show();
+                                                    });
+                                                }
 
-// Двигаем камеру
-                                        mapView.getMapWindow().getMap().move(
-                                                new CameraPosition(new Point(centerLat, centerLon), zoom, 0.0f, 0.0f),
-                                                new Animation(Animation.Type.SMOOTH, 1f),
-                                                null
+                                                @Override
+                                                public void onError(String errorMessage) {
+                                                    runOnUiThread(() ->
+                                                            Toast.makeText(MainActivity.this, "Ошибка маршрута: " + errorMessage, Toast.LENGTH_LONG).show()
+                                                    );
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    @Override
+                                    public void onError(String errorMessage) {
+                                        runOnUiThread(() ->
+                                                Toast.makeText(MainActivity.this, "Ошибка Geoapify: " + errorMessage, Toast.LENGTH_LONG).show()
                                         );
-
-                                        Toast.makeText(MainActivity.this, "Маршрут построен", Toast.LENGTH_SHORT).show();
-                                    });
-                                }
-
-                                @Override
-                                public void onError(String errorMessage) {
-                                    runOnUiThread(() ->
-                                            Toast.makeText(MainActivity.this, "Ошибка маршрута: " + errorMessage, Toast.LENGTH_LONG).show()
-                                    );
-                                }
-                            });
-                            return;
-                        }
-
-                        // третий тап — сброс маршрута
-                        mapObjects.clear();
-                        startPoint = null;
-                        endPoint = null;
-                        startMarker = null;
-                        endMarker = null;
-                        routeLine = null;
-                        Toast.makeText(MainActivity.this, "Маршрут сброшен, выбери заново", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
                     }
 
                     @Override
-                    public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) { }
+                    public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) {
+                        // Сброс маршрута
+                        map.getMapObjects().clear();
+                        startPoint = null;
+                        endPoint = null;
+                        routeLine = null;
+                        Toast.makeText(MainActivity.this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
+                    }
                 };
+
 
                 mapWindow.getMap().addInputListener(mapInputListener);
 

@@ -18,8 +18,7 @@ import java.util.List;
 public class OpenRouteServiceClient {
 
     private static final String BASE_URL = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson";
-    private static final String API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUwYThlMGNiZTU3NjQ0NmM4MDM2OTZkZDAyZjU4ODhkIiwiaCI6Im11cm11cjY0In0=";
-
+    private static final String ORS_API_KEY = BuildConfig.ORS_API_KEY;
     public interface ORSCallback {
         void onSuccess(List<Point> routePoints);
         void onError(String errorMessage);
@@ -37,7 +36,7 @@ public class OpenRouteServiceClient {
                 URL url = new URL(BASE_URL);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
-                conn.setRequestProperty("Authorization", API_KEY);
+                conn.setRequestProperty("Authorization", ORS_API_KEY);
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setDoOutput(true);
                 conn.setConnectTimeout(10000);

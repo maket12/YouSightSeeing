@@ -1,37 +1,62 @@
 plugins {
     id 'com.android.application'
+    id 'com.google.gms.google-services'
 }
 
 android {
-    namespace 'com.example.yandexmapcitysearch'
-    compileSdk 34
+    namespace = 'com.example.yandexmapcitysearch'
+    compileSdk = 34
 
     defaultConfig {
-        applicationId "com.example.yandexmapcitysearch"
-        minSdk 26
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-        buildConfigField "String", "MAPKIT_API_KEY", "\"${mapkitApiKey}\""    }
+        applicationId = "com.example.yandexmapcitysearch"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        buildConfigField("String", "MAPKIT_API_KEY", "\"${mapkitApiKey}\"")
+        buildConfigField("String", "GEOAPIFY_API_KEY", "\"${geoapifyApiKey}\"")
+        buildConfigField("String", "ORS_API_KEY", "\"${openrouteserviceApiKey}\"")
+    }
 
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            minifyEnabled = false
+            proguardFiles(getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro')
         }
     }
+
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_11
-        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
+
     buildFeatures {
-        buildConfig true
+        buildConfig = true
     }
 }
 
 dependencies {
+    // Yandex MapKit
     implementation 'com.yandex.android:maps.mobile:4.23.0-navikit'
+
+    // AndroidX компоненты
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    // Remove if not needed: implementation libs.play.services.appsearch
+    implementation 'androidx.cardview:cardview:1.0.0'
+
+    // Firebase BOM
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    implementation 'com.google.firebase:firebase-auth'
+
+    // Google Play Services
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+
+    // Material Design
+    implementation 'com.google.android.material:material:1.11.0'
+
+    // Splash Screen API (для современного splash screen)
+    implementation 'androidx.core:core-splashscreen:1.0.1'
+    implementation libs.firebase.firestore
 }
+
