@@ -1,37 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Карта занимает весь экран -->
     <com.yandex.mapkit.mapview.MapView
         android:id="@+id/mapView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/editCity"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
-    <EditText
-        android:id="@+id/editCity"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:hint="Введите город"
-        android:inputType="text"
-        app:layout_constraintBottom_toTopOf="@id/btnSearch"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintWidth_percent="0.8" />
-
-    <Button
-        android:id="@+id/btnSearch"
+    <!-- Панель управления слева сверху -->
+    <LinearLayout
+        android:id="@+id/controlPanel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Поиск"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        android:layout_gravity="top|start"
+        android:layout_margin="16dp"
+        android:background="#CCFFFFFF"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:elevation="4dp">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <EditText
+            android:id="@+id/editPointsCount"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:hint="Точки"
+            android:inputType="number"
+            android:maxLength="2"
+            android:text="2"
+            android:textSize="14sp"
+            android:padding="8dp"
+            android:background="@android:color/white"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnSetPoints"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Установить"
+            android:textSize="12sp"
+            android:padding="8dp" />
+    </LinearLayout>
+
+    <!-- Боковые кнопки зума справа -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="16dp"
+        android:orientation="vertical"
+        android:spacing="12dp">
+
+        <!-- Кнопка приближения (+) -->
+        <Button
+            android:id="@+id/btnZoomIn"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginBottom="8dp"
+            android:text="+"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:background="@drawable/circular_button"
+            android:elevation="4dp"
+            android:contentDescription="Приблизить карту" />
+
+        <!-- Кнопка отдаления (-) -->
+        <Button
+            android:id="@+id/btnZoomOut"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:text="−"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:background="@drawable/circular_button"
+            android:elevation="4dp"
+            android:contentDescription="Отдалить карту" />
+    </LinearLayout>
+
+    <!-- Панель поиска городов внизу -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_margin="16dp"
+        android:background="#CCFFFFFF"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:elevation="4dp">
+
+        <EditText
+            android:id="@+id/editCity"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Введите город"
+            android:inputType="text"
+            android:padding="8dp"
+            android:background="@android:color/white"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btnSearch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Поиск"
+            android:padding="8dp" />
+    </LinearLayout>
+
+</FrameLayout>
