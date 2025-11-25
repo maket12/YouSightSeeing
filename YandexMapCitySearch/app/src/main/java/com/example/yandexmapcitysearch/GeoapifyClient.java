@@ -1,5 +1,6 @@
 package com.example.yandexmapcitysearch;
 
+import android.text.TextUtils;
 import android.util.Log;
 import com.yandex.mapkit.geometry.Point;
 import org.json.JSONArray;
@@ -9,7 +10,11 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class GeoapifyClient {
 
@@ -30,12 +35,43 @@ public class GeoapifyClient {
         void onError(String errorMessage);
     }
 
-    public void getNearbyPlaces(double lat, double lon, GeoapifyCallback callback) {
+    // Маппинг пользовательских категорий на Geoapify ключи
+    private static final Map<String, String> categoryMap = new HashMap<>();
+    static {
+        categoryMap.put("Парки", "tourism.park");
+        categoryMap.put("Архитектура", "tourism.architecture");
+        categoryMap.put("Музеи", "tourism.museum");
+        categoryMap.put("Кафе", "catering.cafe");
+        categoryMap.put("Рестораны", "catering.restaurant");
+        categoryMap.put("Необычные и скрытые уголки города", "tourism.attraction");
+        // Добавьте другие категории по вашему списку
+    }
+
+    public static Set<String> mapUserCategoriesToGeoapify(Set<String> userCategories) {
+        Set<String> geoapifyCategories = new HashSet<>();
+        for (String userCat : userCategories) {
+            String geoCat = categoryMap.get(userCat);
+            if (geoCat != null) {
+                geoapifyCategories.add(geoCat);
+            }
+        }
+        if (geoapifyCategories.isEmpty()) {
+            geoapifyCategories.add("tourism.attraction"); // дефолтная
+        }
+        return geoapifyCategories;
+    }
+
+    // Метод с передачей пользовательских категорий
+    public void getNearbyPlaces(double lat, double lon, Set<String> userCategories, GeoapifyCallback callback) {
         new Thread(() -> {
             try {
+                // Преобразуем пользовательские категории в Geoapify
+                Set<String> geoCategoriesSet = mapUserCategoriesToGeoapify(userCategories);
+                String categoriesParam = TextUtils.join(",", geoCategoriesSet);
+
                 String urlStr = String.format(
-                        "https://api.geoapify.com/v2/places?categories=tourism.attraction&filter=circle:%.6f,%.6f,1000&limit=5&apiKey=%s",
-                        lon, lat, GEOAPIFY_API_KEY
+                        "https://api.geoapify.com/v2/places?categories=%s&filter=circle:%.6f,%.6f,1000&limit=5&apiKey=%s",
+                        categoriesParam, lon, lat, GEOAPIFY_API_KEY
                 );
 
                 URL url = new URL(urlStr);
@@ -50,6 +86,7 @@ public class GeoapifyClient {
                 while ((line = br.readLine()) != null) {
                     response.append(line);
                 }
+                br.close();
 
                 JSONObject jsonResponse = new JSONObject(response.toString());
                 JSONArray features = jsonResponse.getJSONArray("features");
