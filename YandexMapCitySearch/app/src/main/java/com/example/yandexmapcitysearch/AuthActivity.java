@@ -3,10 +3,15 @@ package com.example.yandexmapcitysearch;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.Toast;
-import androidx.annotation.NonNull;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
@@ -18,23 +23,43 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.GoogleAuthProvider;
 
+import java.util.Objects;
+
 public class AuthActivity extends AppCompatActivity {
     private static final String TAG = "AuthActivity";
-    private static final int RC_SIGN_IN = 9001;
 
     private FirebaseAuth mAuth;
     private GoogleSignInClient mGoogleSignInClient;
     private Button btnGoogleSignIn;
+    private ProgressBar progressBar;
+
+    private final ActivityResultLauncher<Intent> signInLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
+                    try {
+                        GoogleSignInAccount account = task.getResult(ApiException.class);
+                        firebaseAuthWithGoogle(Objects.requireNonNull(account).getIdToken());
+                    } catch (ApiException e) {
+                        Log.w(TAG, "Google sign in failed", e);
+                        Toast.makeText(this, "Ошибка входа: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        progressBar.setVisibility(View.GONE);
+                        btnGoogleSignIn.setEnabled(true);
+                    }
+                } else {
+                    progressBar.setVisibility(View.GONE);
+                    btnGoogleSignIn.setEnabled(true);
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_auth);
 
-        // Инициализация Firebase Auth
         mAuth = FirebaseAuth.getInstance();
 
-        // Настройка Google Sign-In
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
@@ -43,45 +68,30 @@ public class AuthActivity extends AppCompatActivity {
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
 
         btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn);
+        progressBar = findViewById(R.id.progressBar); // Добавьте ProgressBar в разметку
+
         btnGoogleSignIn.setOnClickListener(v -> signIn());
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        // Проверка авторизации убрана - теперь это делает SplashActivity
-        // Оставляем пустым или можно удалить метод
-    }
-
     private void signIn() {
+        btnGoogleSignIn.setEnabled(false);
+        progressBar.setVisibility(View.VISIBLE);
+
         Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-        startActivityForResult(signInIntent, RC_SIGN_IN);
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == RC_SIGN_IN) {
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            try {
-                GoogleSignInAccount account = task.getResult(ApiException.class);
-                firebaseAuthWithGoogle(account.getIdToken());
-            } catch (ApiException e) {
-                Log.w(TAG, "Google sign in failed", e);
-                Toast.makeText(this, "Ошибка входа: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        }
+        signInLauncher.launch(signInIntent);
     }
 
     private void firebaseAuthWithGoogle(String idToken) {
         AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
         mAuth.signInWithCredential(credential)
                 .addOnCompleteListener(this, task -> {
+                    progressBar.setVisibility(View.GONE);
+                    btnGoogleSignIn.setEnabled(true);
                     if (task.isSuccessful()) {
                         Log.d(TAG, "signInWithCredential:success");
                         FirebaseUser user = mAuth.getCurrentUser();
-                        Toast.makeText(this, "Добро пожаловать, " + user.getDisplayName(), Toast.LENGTH_SHORT).show();
+                        String name = (user != null && user.getDisplayName() != null) ? user.getDisplayName() : "Пользователь";
+                        Toast.makeText(this, "Добро пожаловать, " + name, Toast.LENGTH_SHORT).show();
                         navigateToMain();
                     } else {
                         Log.w(TAG, "signInWithCredential:failure", task.getException());
@@ -91,7 +101,6 @@ public class AuthActivity extends AppCompatActivity {
     }
 
     private void navigateToMain() {
-        // Проверяем, заполнены ли предпочтения
         boolean hasPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE)
                 .contains("categories");
 

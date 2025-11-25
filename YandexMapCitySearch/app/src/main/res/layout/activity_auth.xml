@@ -55,6 +55,7 @@
                 app:icon="@drawable/ic_google"
                 app:iconGravity="textStart"
                 app:iconPadding="12dp"
+                app:iconSize="24dp"
                 app:iconTint="@null"
                 app:backgroundTint="#FFFFFF"
                 app:cornerRadius="28dp"/>

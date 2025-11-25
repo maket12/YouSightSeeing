@@ -5,6 +5,7 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
+import android.content.SharedPreferences;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -32,6 +33,8 @@ import com.yandex.runtime.image.ImageProvider;
 import com.yandex.mapkit.GeoObjectCollection;
 
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
@@ -90,11 +93,18 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                             return;
                         }
 
-                        // === Второй тап: ищем достопримечательности рядом ===
+                        // Получаем категории пользователя из SharedPreferences
+                        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+                        Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
+
                         GeoapifyClient geoClient = new GeoapifyClient();
+                        // Вызываем обновлённый метод с помощью userCategories
+                        Log.d("PreferencesCheck", "Выбранные категории: " + userCategories.toString());
+
                         geoClient.getNearbyPlaces(
                                 point.getLatitude(),
                                 point.getLongitude(),
+                                userCategories,
                                 new GeoapifyClient.GeoapifyCallback() {
                                     @Override
                                     public void onSuccess(List<GeoapifyClient.Place> places) {
@@ -104,16 +114,19 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                                                 return;
                                             }
 
-                                            // Ставим метки достопримечательностей
+                                            // Очищаем предыдущие объекты и ставим новые маркеры
+                                            mapObjects.clear();
+
                                             for (GeoapifyClient.Place place : places) {
                                                 PlacemarkMapObject poiMarker = mapObjects.addPlacemark(place.location);
                                                 poiMarker.setUserData(place.name);
                                             }
 
-                                            // Берём первую достопримечательность как цель маршрута
+                                            // Берём первую достопримечательность как конечную точку маршрута
                                             GeoapifyClient.Place target = places.get(0);
                                             endPoint = target.location;
 
+                                            // Строим маршрут с OpenRouteService
                                             orsClient.getRoute(startPoint, endPoint, new OpenRouteServiceClient.ORSCallback() {
                                                 @Override
                                                 public void onSuccess(List<Point> routePoints) {
@@ -150,7 +163,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                                     }
                                 });
                     }
-
                     @Override
                     public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) {
                         // Сброс маршрута
