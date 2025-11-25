@@ -1,17 +1,15 @@
 package com.example.yandexmapcitysearch;
 
 import android.os.Bundle;
-import android.text.InputFilter;
-import android.text.InputType;
 import android.util.Log;
-import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import model.Route;
+import utils.RouteOptimizer;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.Geometry;
@@ -40,26 +38,29 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
+    // UI компоненты
     private MapView mapView;
     private EditText editCity;
     private Button btnSearch;
-    private SearchManager searchManager;
-    private Session searchSession;
-
-    // Новые переменные для многоточечного маршрута
     private EditText editPointsCount;
     private Button btnSetPoints;
-    private int maxPoints = 2;
-    private int currentPointIndex = 0;
-    private List<Point> routePoints = new ArrayList<>();
-    private List<PlacemarkMapObject> pointMarkers = new ArrayList<>();
-
-    // Кнопки зума
     private Button btnZoomIn;
     private Button btnZoomOut;
 
-    private PolylineMapObject routeLine;
+    // Yandex Search
+    private SearchManager searchManager;
+    private Session searchSession;
+
+    // Маршрут
     private OpenRouteServiceClient orsClient;
+    private Route currentRoute;
+    private int maxPoints = 2;
+    private int currentPointIndex = 0;
+    private List<Point> selectedPoints = new ArrayList<>();
+    private List<PlacemarkMapObject> pointMarkers = new ArrayList<>();
+    private PolylineMapObject routeLine;
+
+    // Map input
     private InputListener mapInputListener;
 
     @Override
@@ -67,8 +68,15 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        orsClient = new OpenRouteServiceClient();
+        initializeMapKit();
+        initializeUI();
+        initializeSearch();
+    }
 
+    /**
+     * Инициализация MapKit
+     */
+    private void initializeMapKit() {
         try {
             if (BuildConfig.MAPKIT_API_KEY == null || BuildConfig.MAPKIT_API_KEY.isEmpty()) {
                 Log.e("MainActivity", "MAPKIT_API_KEY is not set in BuildConfig");
@@ -81,49 +89,78 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         } catch (AssertionError e) {
             Log.e("MainActivity", "Ошибка инициализации MapKit: " + e.getMessage());
             Toast.makeText(this, "Ошибка инициализации карты: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            return;
         }
+    }
 
+    /**
+     * Инициализация UI элементов
+     */
+    private void initializeUI() {
         mapView = findViewById(R.id.mapView);
         editCity = findViewById(R.id.editCity);
         btnSearch = findViewById(R.id.btnSearch);
+        editPointsCount = findViewById(R.id.editPointsCount);
+        btnSetPoints = findViewById(R.id.btnSetPoints);
+        btnZoomIn = findViewById(R.id.btnZoomIn);
+        btnZoomOut = findViewById(R.id.btnZoomOut);
 
-        // Инициализация UI для выбора количества точек
-        initializePointsSelectionUI();
+        orsClient = new OpenRouteServiceClient();
 
-        // Инициализация кнопок зума
-        initializeZoomButtons();
-
+        // Инициализация карты
         if (mapView != null) {
-            MapWindow mapWindow = mapView.getMapWindow();
-            if (mapWindow != null) {
-                // Слушатель нажатий по карте
-                mapInputListener = new InputListener() {
-                    @Override
-                    public void onMapTap(com.yandex.mapkit.map.Map map, Point point) {
-                        handleMapTap(map, point);
-                    }
-
-                    @Override
-                    public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) { }
-                };
-
-                mapWindow.getMap().addInputListener(mapInputListener);
-                mapWindow.getMap().move(
-                        new CameraPosition(new Point(55.751225, 37.62954), 10.0f, 0.0f, 0.0f),
-                        new Animation(Animation.Type.SMOOTH, 1),
-                        null
-                );
-            } else {
-                Toast.makeText(this, "Ошибка инициализации MapWindow", Toast.LENGTH_LONG).show();
-                Log.e("MainActivity", "MapWindow is null");
-            }
+            initializeMap();
         } else {
             Toast.makeText(this, "Ошибка инициализации MapView", Toast.LENGTH_LONG).show();
             Log.e("MainActivity", "MapView is null");
         }
 
-        searchManager = SearchFactory.getInstance().createSearchManager(SearchManagerType.ONLINE);
+        // Обработчики кнопок
+        setupButtonListeners();
+    }
+
+    /**
+     * Инициализация карты и слушателей
+     */
+    private void initializeMap() {
+        MapWindow mapWindow = mapView.getMapWindow();
+        if (mapWindow != null) {
+            mapInputListener = new InputListener() {
+                @Override
+                public void onMapTap(com.yandex.mapkit.map.Map map, Point point) {
+                    handleMapTap(map, point);
+                }
+
+                @Override
+                public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) { }
+            };
+
+            mapWindow.getMap().addInputListener(mapInputListener);
+            mapWindow.getMap().move(
+                    new CameraPosition(new Point(55.751225, 37.62954), 10.0f, 0.0f, 0.0f),
+                    new Animation(Animation.Type.SMOOTH, 1),
+                    null
+            );
+        } else {
+            Toast.makeText(this, "Ошибка инициализации MapWindow", Toast.LENGTH_LONG).show();
+            Log.e("MainActivity", "MapWindow is null");
+        }
+    }
+
+    /**
+     * Настройка обработчиков кнопок
+     */
+    private void setupButtonListeners() {
+        if (btnSetPoints != null) {
+            btnSetPoints.setOnClickListener(v -> setPointsCount());
+        }
+
+        if (btnZoomIn != null) {
+            btnZoomIn.setOnClickListener(v -> zoomIn());
+        }
+
+        if (btnZoomOut != null) {
+            btnZoomOut.setOnClickListener(v -> zoomOut());
+        }
 
         if (btnSearch != null) {
             btnSearch.setOnClickListener(v -> {
@@ -134,73 +171,19 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     Toast.makeText(this, "Введите название города", Toast.LENGTH_SHORT).show();
                 }
             });
-        } else {
-            Log.e("MainActivity", "btnSearch is null");
         }
     }
 
-    private void initializePointsSelectionUI() {
-        // Находим элементы из XML (они уже созданы в layout)
-        editPointsCount = findViewById(R.id.editPointsCount);
-        btnSetPoints = findViewById(R.id.btnSetPoints);
-        
-        // Устанавливаем обработчик кнопки
-        if (btnSetPoints != null) {
-            btnSetPoints.setOnClickListener(v -> setPointsCount());
-        }
+    /**
+     * Инициализация поиска городов
+     */
+    private void initializeSearch() {
+        searchManager = SearchFactory.getInstance().createSearchManager(SearchManagerType.ONLINE);
     }
 
-    private void initializeZoomButtons() {
-        btnZoomIn = findViewById(R.id.btnZoomIn);
-        btnZoomOut = findViewById(R.id.btnZoomOut);
-
-        if (btnZoomIn != null) {
-            btnZoomIn.setOnClickListener(v -> zoomIn());
-        }
-
-        if (btnZoomOut != null) {
-            btnZoomOut.setOnClickListener(v -> zoomOut());
-        }
-    }
-
-    private void zoomIn() {
-        if (mapView == null || mapView.getMapWindow() == null) return;
-
-        com.yandex.mapkit.map.Map map = mapView.getMapWindow().getMap();
-        CameraPosition currentPosition = map.getCameraPosition();
-        float newZoom = currentPosition.getZoom() + 1.0f;
-
-        map.move(
-                new CameraPosition(
-                        currentPosition.getTarget(),
-                        newZoom,
-                        currentPosition.getAzimuth(),
-                        currentPosition.getTilt()
-                ),
-                new Animation(Animation.Type.SMOOTH, 0.5f),
-                null
-        );
-    }
-
-    private void zoomOut() {
-        if (mapView == null || mapView.getMapWindow() == null) return;
-
-        com.yandex.mapkit.map.Map map = mapView.getMapWindow().getMap();
-        CameraPosition currentPosition = map.getCameraPosition();
-        float newZoom = Math.max(currentPosition.getZoom() - 1.0f, 0.0f);
-
-        map.move(
-                new CameraPosition(
-                        currentPosition.getTarget(),
-                        newZoom,
-                        currentPosition.getAzimuth(),
-                        currentPosition.getTilt()
-                ),
-                new Animation(Animation.Type.SMOOTH, 0.5f),
-                null
-        );
-    }
-
+    /**
+     * Установка количества точек маршрута
+     */
     private void setPointsCount() {
         String input = editPointsCount.getText().toString().trim();
         if (input.isEmpty()) {
@@ -223,74 +206,48 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         }
     }
 
+    /**
+     * Обработка нажатия на карту
+     */
     private void handleMapTap(com.yandex.mapkit.map.Map map, Point point) {
         MapObjectCollection mapObjects = map.getMapObjects();
 
         if (currentPointIndex < maxPoints) {
-            // Добавляем точку
-            routePoints.add(point);
+            selectedPoints.add(point);
             PlacemarkMapObject marker = mapObjects.addPlacemark(point);
             pointMarkers.add(marker);
             currentPointIndex++;
 
             Toast.makeText(this, "Точка " + currentPointIndex + "/" + maxPoints + " добавлена", Toast.LENGTH_SHORT).show();
 
-            // Если все точки выбраны, строим маршрут
             if (currentPointIndex == maxPoints) {
                 buildOptimalRoute();
             }
         } else {
-            // Сброс маршрута при дополнительном нажатии
             resetRoute();
             Toast.makeText(this, "Маршрут сброшен. Выберите " + maxPoints + " точек заново", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void resetRoute() {
-        if (mapView != null && mapView.getMapWindow() != null) {
-            MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-            mapObjects.clear();
-        }
-        routePoints.clear();
-        pointMarkers.clear();
-        currentPointIndex = 0;
-        routeLine = null;
-    }
-
+    /**
+     * Построение оптимального маршрута
+     */
     private void buildOptimalRoute() {
-        if (routePoints.size() < 2) {
+        if (selectedPoints.size() < 2) {
             Toast.makeText(this, "Недостаточно точек для построения маршрута", Toast.LENGTH_SHORT).show();
             return;
         }
 
         Toast.makeText(this, "Построение оптимального маршрута...", Toast.LENGTH_LONG).show();
 
-        // Используем жадный алгоритм ближайшего соседа для оптимизации порядка точек
-        List<Point> optimizedPoints = optimizePointsOrder(routePoints);
+        // Оптимизация порядка точек
+        List<Point> optimizedPoints = RouteOptimizer.optimize(selectedPoints);
 
-        // Строим маршрут через оптимизированные точки
+        // Запрос маршрута через API
         orsClient.getMultiPointRoute(optimizedPoints, new OpenRouteServiceClient.ORSCallback() {
             @Override
             public void onSuccess(List<Point> routeCoordinates) {
-                runOnUiThread(() -> {
-                    if (mapView == null || mapView.getMapWindow() == null) return;
-
-                    MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-                    
-                    // Удаляем старую линию маршрута, если есть
-                    if (routeLine != null) {
-                        mapObjects.remove(routeLine);
-                    }
-
-                    // Добавляем новую линию маршрута
-                    Polyline poly = new Polyline(routeCoordinates);
-                    routeLine = mapObjects.addPolyline(poly);
-
-                    // Подгоняем камеру под весь маршрут
-                    adjustCameraToRoute(routeCoordinates);
-
-                    Toast.makeText(MainActivity.this, "Маршрут построен!", Toast.LENGTH_SHORT).show();
-                });
+                runOnUiThread(() -> displayRoute(routeCoordinates));
             }
 
             @Override
@@ -303,61 +260,89 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     }
 
     /**
-     * Оптимизация порядка точек с помощью жадного алгоритма ближайшего соседа
+     * Отображение маршрута на карте
      */
-    private List<Point> optimizePointsOrder(List<Point> points) {
-        if (points.size() <= 2) {
-            return new ArrayList<>(points);
+    private void displayRoute(List<Point> routeCoordinates) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+
+        if (routeLine != null) {
+            mapObjects.remove(routeLine);
         }
 
-        List<Point> optimized = new ArrayList<>();
-        List<Point> remaining = new ArrayList<>(points);
+        Polyline poly = new Polyline(routeCoordinates);
+        routeLine = mapObjects.addPolyline(poly);
 
-        // Начинаем с первой точки
-        Point current = remaining.remove(0);
-        optimized.add(current);
+        adjustCameraToRoute(routeCoordinates);
 
-        // Жадно выбираем ближайшую непосещенную точку
-        while (!remaining.isEmpty()) {
-            Point nearest = findNearestPoint(current, remaining);
-            remaining.remove(nearest);
-            optimized.add(nearest);
-            current = nearest;
-        }
+        // Создаем объект маршрута
+        currentRoute = new Route(routeCoordinates, "Маршрут " + System.currentTimeMillis());
 
-        return optimized;
+        Toast.makeText(MainActivity.this, "Маршрут построен!", Toast.LENGTH_SHORT).show();
     }
 
     /**
-     * Находит ближайшую точку к заданной из списка
+     * Сброс маршрута
      */
-    private Point findNearestPoint(Point from, List<Point> points) {
-        Point nearest = points.get(0);
-        double minDistance = calculateDistance(from, nearest);
-
-        for (int i = 1; i < points.size(); i++) {
-            Point candidate = points.get(i);
-            double distance = calculateDistance(from, candidate);
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearest = candidate;
-            }
+    private void resetRoute() {
+        if (mapView != null && mapView.getMapWindow() != null) {
+            MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+            mapObjects.clear();
         }
-
-        return nearest;
+        selectedPoints.clear();
+        pointMarkers.clear();
+        currentPointIndex = 0;
+        routeLine = null;
+        currentRoute = null;
     }
 
     /**
-     * Вычисляет евклидово расстояние между двумя точками
+     * Приближение карты
      */
-    private double calculateDistance(Point p1, Point p2) {
-        double dLat = p1.getLatitude() - p2.getLatitude();
-        double dLon = p1.getLongitude() - p2.getLongitude();
-        return Math.sqrt(dLat * dLat + dLon * dLon);
+    private void zoomIn() {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        com.yandex.mapkit.map.Map map = mapView.getMapWindow().getMap();
+        CameraPosition currentPosition = map.getCameraPosition();
+        float newZoom = currentPosition.getZoom() + 1.0f;
+
+        map.move(
+                new CameraPosition(
+                        currentPosition.getTarget(),
+                        newZoom,
+                        currentPosition.getAzimuth(),
+                        currentPosition.getTilt()
+                ),
+                new Animation(Animation.Type.SMOOTH, 0.5f),
+                null
+        );
     }
 
     /**
-     * Подгоняет камеру под весь маршрут
+     * Отдаление карты
+     */
+    private void zoomOut() {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        com.yandex.mapkit.map.Map map = mapView.getMapWindow().getMap();
+        CameraPosition currentPosition = map.getCameraPosition();
+        float newZoom = Math.max(currentPosition.getZoom() - 1.0f, 0.0f);
+
+        map.move(
+                new CameraPosition(
+                        currentPosition.getTarget(),
+                        newZoom,
+                        currentPosition.getAzimuth(),
+                        currentPosition.getTilt()
+                ),
+                new Animation(Animation.Type.SMOOTH, 0.5f),
+                null
+        );
+    }
+
+    /**
+     * Подгонка камеры под маршрут
      */
     private void adjustCameraToRoute(List<Point> routeCoordinates) {
         if (routeCoordinates.isEmpty() || mapView == null) return;
@@ -375,7 +360,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         double centerLat = (minLat + maxLat) / 2;
         double centerLon = (minLon + maxLon) / 2;
 
-        // Примерный zoom под размер маршрута
         float zoom;
         double latDiff = maxLat - minLat;
         double lonDiff = maxLon - minLon;
@@ -394,8 +378,9 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         );
     }
 
-    // Остальные методы остаются без изменений
-
+    /**
+     * Поиск города по названию
+     */
     private void submitQuery(String query) {
         if (searchSession != null) {
             searchSession.cancel();
