@@ -1,5 +1,6 @@
 package com.example.yandexmapcitysearch;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -34,7 +35,9 @@ import com.yandex.runtime.image.ImageProvider;
 import com.yandex.mapkit.GeoObjectCollection;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
@@ -131,7 +134,11 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 }
 
                 @Override
-                public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) { }
+                public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) {
+                    // Сброс маршрута по долгому нажатию
+                    resetRoute();
+                    Toast.makeText(MainActivity.this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
+                }
             };
 
             mapWindow.getMap().addInputListener(mapInputListener);
@@ -208,6 +215,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
     /**
      * Обработка нажатия на карту
+     * ВАШ КОД: интеграция с пользовательскими предпочтениями
      */
     private void handleMapTap(com.yandex.mapkit.map.Map map, Point point) {
         MapObjectCollection mapObjects = map.getMapObjects();
@@ -224,6 +232,35 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 buildOptimalRoute();
             }
         } else {
+            // После добавления всех точек, ищем достопримечательности (ВАШ КОД)
+            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+            Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
+
+            GeoapifyClient geoClient = new GeoapifyClient();
+            Log.d("PreferencesCheck", "Выбранные категории: " + userCategories.toString());
+
+            geoClient.getNearbyPlaces(
+                    point.getLatitude(),
+                    point.getLongitude(),
+                    userCategories,
+                    new GeoapifyClient.GeoapifyCallback() {
+                        @Override
+                        public void onSuccess(List<GeoapifyClient.Place> places) {
+                            runOnUiThread(() -> {
+                                if (!places.isEmpty()) {
+                                    Log.d("Geoapify", "Найдено " + places.size() + " достопримечательностей");
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onError(String errorMessage) {
+                            runOnUiThread(() ->
+                                    Log.e("Geoapify", "Ошибка поиска: " + errorMessage)
+                            );
+                        }
+                    });
+
             resetRoute();
             Toast.makeText(this, "Маршрут сброшен. Выберите " + maxPoints + " точек заново", Toast.LENGTH_SHORT).show();
         }

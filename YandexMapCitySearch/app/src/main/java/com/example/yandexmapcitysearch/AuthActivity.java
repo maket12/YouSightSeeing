@@ -68,7 +68,6 @@ public class AuthActivity extends AppCompatActivity {
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
 
         btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn);
-        progressBar = findViewById(R.id.progressBar); // Добавьте ProgressBar в разметку
 
         btnGoogleSignIn.setOnClickListener(v -> signIn());
     }
