@@ -36,9 +36,12 @@ import com.yandex.mapkit.GeoObjectCollection;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * MainActivity - управление UI и взаимодействием с пользователем
+ */
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
-    // UI компоненты
+    // ===== UI компоненты =====
     private MapView mapView;
     private EditText editCity;
     private Button btnSearch;
@@ -47,12 +50,14 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private Button btnZoomIn;
     private Button btnZoomOut;
 
-    // Yandex Search
+    // ===== Yandex Search =====
     private SearchManager searchManager;
     private Session searchSession;
 
-    // Маршрут
+    // ===== API клиент =====
     private OpenRouteServiceClient orsClient;
+
+    // ===== Состояние маршрута =====
     private Route currentRoute;
     private int maxPoints = 2;
     private int currentPointIndex = 0;
@@ -60,7 +65,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private List<PlacemarkMapObject> pointMarkers = new ArrayList<>();
     private PolylineMapObject routeLine;
 
-    // Map input
+    // ===== Слушатели =====
     private InputListener mapInputListener;
 
     @Override
@@ -69,7 +74,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         setContentView(R.layout.activity_main);
 
         initializeMapKit();
-        initializeUI();
+        initializeComponents();
+        setupListeners();
         initializeSearch();
     }
 
@@ -83,7 +89,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 Toast.makeText(this, "Ошибка: API-ключ не настроен", Toast.LENGTH_LONG).show();
                 return;
             }
-
             MapKitFactory.initialize(this);
             Log.d("MainActivity", "MapKit initialized successfully");
         } catch (AssertionError e) {
@@ -93,9 +98,9 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     }
 
     /**
-     * Инициализация UI элементов
+     * Инициализация компонентов UI
      */
-    private void initializeUI() {
+    private void initializeComponents() {
         mapView = findViewById(R.id.mapView);
         editCity = findViewById(R.id.editCity);
         btnSearch = findViewById(R.id.btnSearch);
@@ -106,20 +111,16 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         orsClient = new OpenRouteServiceClient();
 
-        // Инициализация карты
         if (mapView != null) {
             initializeMap();
         } else {
             Toast.makeText(this, "Ошибка инициализации MapView", Toast.LENGTH_LONG).show();
             Log.e("MainActivity", "MapView is null");
         }
-
-        // Обработчики кнопок
-        setupButtonListeners();
     }
 
     /**
-     * Инициализация карты и слушателей
+     * Инициализация карты
      */
     private void initializeMap() {
         MapWindow mapWindow = mapView.getMapWindow();
@@ -149,7 +150,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     /**
      * Настройка обработчиков кнопок
      */
-    private void setupButtonListeners() {
+    private void setupListeners() {
         if (btnSetPoints != null) {
             btnSetPoints.setOnClickListener(v -> setPointsCount());
         }
@@ -180,6 +181,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void initializeSearch() {
         searchManager = SearchFactory.getInstance().createSearchManager(SearchManagerType.ONLINE);
     }
+
+    // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
 
     /**
      * Установка количества точек маршрута
@@ -230,74 +233,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     }
 
     /**
-     * Построение оптимального маршрута
-     */
-    private void buildOptimalRoute() {
-        if (selectedPoints.size() < 2) {
-            Toast.makeText(this, "Недостаточно точек для построения маршрута", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Toast.makeText(this, "Построение оптимального маршрута...", Toast.LENGTH_LONG).show();
-
-        // Оптимизация порядка точек
-        List<Point> optimizedPoints = RouteOptimizer.optimize(selectedPoints);
-
-        // Запрос маршрута через API
-        orsClient.getMultiPointRoute(optimizedPoints, new OpenRouteServiceClient.ORSCallback() {
-            @Override
-            public void onSuccess(List<Point> routeCoordinates) {
-                runOnUiThread(() -> displayRoute(routeCoordinates));
-            }
-
-            @Override
-            public void onError(String errorMessage) {
-                runOnUiThread(() ->
-                        Toast.makeText(MainActivity.this, "Ошибка построения маршрута: " + errorMessage, Toast.LENGTH_LONG).show()
-                );
-            }
-        });
-    }
-
-    /**
-     * Отображение маршрута на карте
-     */
-    private void displayRoute(List<Point> routeCoordinates) {
-        if (mapView == null || mapView.getMapWindow() == null) return;
-
-        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-
-        if (routeLine != null) {
-            mapObjects.remove(routeLine);
-        }
-
-        Polyline poly = new Polyline(routeCoordinates);
-        routeLine = mapObjects.addPolyline(poly);
-
-        adjustCameraToRoute(routeCoordinates);
-
-        // Создаем объект маршрута
-        currentRoute = new Route(routeCoordinates, "Маршрут " + System.currentTimeMillis());
-
-        Toast.makeText(MainActivity.this, "Маршрут построен!", Toast.LENGTH_SHORT).show();
-    }
-
-    /**
-     * Сброс маршрута
-     */
-    private void resetRoute() {
-        if (mapView != null && mapView.getMapWindow() != null) {
-            MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-            mapObjects.clear();
-        }
-        selectedPoints.clear();
-        pointMarkers.clear();
-        currentPointIndex = 0;
-        routeLine = null;
-        currentRoute = null;
-    }
-
-    /**
      * Приближение карты
      */
     private void zoomIn() {
@@ -341,6 +276,80 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         );
     }
 
+    // ===== ЛОГИКА МАРШРУТОВ =====
+
+    /**
+     * Построение оптимального маршрута
+     */
+    private void buildOptimalRoute() {
+        if (selectedPoints.size() < 2) {
+            Toast.makeText(this, "Недостаточно точек для построения маршрута", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Toast.makeText(this, "Построение оптимального маршрута...", Toast.LENGTH_LONG).show();
+
+        // Оптимизация порядка точек
+        List<Point> optimizedPoints = RouteOptimizer.optimize(selectedPoints);
+
+        // ===== НОВЫЙ CALLBACK С ВРЕМЕНЕМ =====
+        orsClient.getMultiPointRoute(optimizedPoints, new OpenRouteServiceClient.ORSCallbackWithDuration() {
+            @Override
+            public void onSuccess(List<Point> routeCoordinates, double durationSeconds) {
+                runOnUiThread(() -> {
+                    displayRoute(routeCoordinates);
+                    // Показываем диалог с временем
+                    DurationDialog dialog = new DurationDialog(MainActivity.this, durationSeconds);
+                    dialog.show();
+                });
+            }
+
+            @Override
+            public void onError(String errorMessage) {
+                runOnUiThread(() ->
+                        Toast.makeText(MainActivity.this, "Ошибка построения маршрута: " + errorMessage, Toast.LENGTH_LONG).show()
+                );
+            }
+        });
+    }
+
+    /**
+     * Отображение маршрута на карте
+     */
+    private void displayRoute(List<Point> routeCoordinates) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+
+        if (routeLine != null) {
+            mapObjects.remove(routeLine);
+        }
+
+        Polyline poly = new Polyline(routeCoordinates);
+        routeLine = mapObjects.addPolyline(poly);
+
+        adjustCameraToRoute(routeCoordinates);
+
+        currentRoute = new Route(routeCoordinates, "Маршрут " + System.currentTimeMillis());
+
+        Toast.makeText(MainActivity.this, "Маршрут построен!", Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * Сброс маршрута
+     */
+    private void resetRoute() {
+        if (mapView != null && mapView.getMapWindow() != null) {
+            MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+            mapObjects.clear();
+        }
+        selectedPoints.clear();
+        pointMarkers.clear();
+        currentPointIndex = 0;
+        routeLine = null;
+        currentRoute = null;
+    }
+
     /**
      * Подгонка камеры под маршрут
      */
@@ -377,6 +386,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 null
         );
     }
+
+    // ===== ПОИСК ГОРОДОВ =====
 
     /**
      * Поиск города по названию
@@ -480,6 +491,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
         Log.e("MainActivity", "Search Error: " + errorMessage);
     }
+
+    // ===== ЖИЗНЕННЫЙ ЦИКЛ =====
 
     @Override
     protected void onStart() {
