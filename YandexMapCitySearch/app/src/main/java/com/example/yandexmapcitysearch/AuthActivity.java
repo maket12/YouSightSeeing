@@ -1,11 +1,11 @@
 package com.example.yandexmapcitysearch;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -18,20 +18,38 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthCredential;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.auth.GoogleAuthProvider;
-
-import java.util.Objects;
 
 public class AuthActivity extends AppCompatActivity {
     private static final String TAG = "AuthActivity";
-
-    private FirebaseAuth mAuth;
+    private static final String PREFS_NAME = "auth_tokens";
     private GoogleSignInClient mGoogleSignInClient;
     private Button btnGoogleSignIn;
-    private ProgressBar progressBar;
+    private static Context appContext;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Инициализируем статический контекст
+        appContext = getApplicationContext();
+
+        setContentView(R.layout.activity_auth);
+
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .requestServerAuthCode(getString(R.string.default_web_client_id))
+                .build();
+
+        mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+        btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn);
+        btnGoogleSignIn.setOnClickListener(v -> signIn());
+    }
+
+    private void signIn() {
+        btnGoogleSignIn.setEnabled(false);
+        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
+        signInLauncher.launch(signInIntent);
+    }
 
     private final ActivityResultLauncher<Intent> signInLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -40,68 +58,72 @@ public class AuthActivity extends AppCompatActivity {
                     Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
                     try {
                         GoogleSignInAccount account = task.getResult(ApiException.class);
-                        firebaseAuthWithGoogle(Objects.requireNonNull(account).getIdToken());
+                        saveGoogleTokens(account);
+                        Log.d(TAG, "Токены сохранены, переход к главному экрану");
+                        navigateToMain();
                     } catch (ApiException e) {
                         Log.w(TAG, "Google sign in failed", e);
-                        Toast.makeText(this, "Ошибка входа: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(this, "Ошибка входа", Toast.LENGTH_SHORT).show();
                         btnGoogleSignIn.setEnabled(true);
                     }
                 } else {
-                    progressBar.setVisibility(View.GONE);
                     btnGoogleSignIn.setEnabled(true);
                 }
             });
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_auth);
+    private void saveGoogleTokens(GoogleSignInAccount account) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
 
-        mAuth = FirebaseAuth.getInstance();
+        String accessToken = account.getIdToken();
+        String refreshToken = account.getServerAuthCode();
 
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build();
+        editor.putString("access_token", accessToken);
+        editor.putString("refresh_token", refreshToken);
+        editor.putString("user_id", account.getId());
+        editor.putString("email", account.getEmail());
+        editor.putString("name", account.getDisplayName());
+        editor.putLong("access_token_expiry", System.currentTimeMillis() + 3600000);
 
-        mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
-
-        btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn);
-
-        btnGoogleSignIn.setOnClickListener(v -> signIn());
+        editor.apply();
     }
 
-    private void signIn() {
-        btnGoogleSignIn.setEnabled(false);
-        progressBar.setVisibility(View.VISIBLE);
-
-        Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-        signInLauncher.launch(signInIntent);
+    /**
+     * СТАТИЧЕСКИЕ МЕТОДЫ - работают из любой Activity
+     */
+    public static String getAccessToken() {
+        if (appContext == null) return null;
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        long expiry = prefs.getLong("access_token_expiry", 0);
+        if (System.currentTimeMillis() > expiry) {
+            Log.w(TAG, "Access token истёк");
+            return null;
+        }
+        return prefs.getString("access_token", null);
     }
 
-    private void firebaseAuthWithGoogle(String idToken) {
-        AuthCredential credential = GoogleAuthProvider.getCredential(idToken, null);
-        mAuth.signInWithCredential(credential)
-                .addOnCompleteListener(this, task -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnGoogleSignIn.setEnabled(true);
-                    if (task.isSuccessful()) {
-                        Log.d(TAG, "signInWithCredential:success");
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        String name = (user != null && user.getDisplayName() != null) ? user.getDisplayName() : "Пользователь";
-                        Toast.makeText(this, "Добро пожаловать, " + name, Toast.LENGTH_SHORT).show();
-                        navigateToMain();
-                    } else {
-                        Log.w(TAG, "signInWithCredential:failure", task.getException());
-                        Toast.makeText(this, "Ошибка аутентификации", Toast.LENGTH_SHORT).show();
-                    }
-                });
+    public static String getRefreshToken() {
+        if (appContext == null) return null;
+        return appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("refresh_token", null);
+    }
+
+    public static boolean isAuthenticated() {
+        if (appContext == null) return false;
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        long expiry = prefs.getLong("access_token_expiry", 0);
+        return System.currentTimeMillis() < expiry && prefs.contains("access_token");
+    }
+
+    public static String getUserEmail() {
+        if (appContext == null) return null;
+        return appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("email", null);
     }
 
     private void navigateToMain() {
-        boolean hasPreferences = getSharedPreferences("user_prefs", MODE_PRIVATE)
-                .contains("categories");
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        boolean hasPreferences = prefs.contains("categories");
 
         Intent intent;
         if (hasPreferences) {
