@@ -25,6 +25,12 @@ public class OpenRouteServiceClient {
         void onError(String errorMessage);
     }
 
+    // ===== НОВЫЙ ИНТЕРФЕЙС С ВРЕМЕНЕМ =====
+    public interface ORSCallbackWithDuration {
+        void onSuccess(List<Point> routePoints, double durationSeconds);
+        void onError(String errorMessage);
+    }
+
     /**
      * Получает маршрут между двумя точками (оригинальный метод)
      */
@@ -76,14 +82,14 @@ public class OpenRouteServiceClient {
                 Log.e("ORS", "Ошибка при запросе: " + e.getMessage());
                 callback.onError(e.getMessage());
             }
+
         }).start();
     }
 
     /**
-     * Получает маршрут через несколько точек (новый метод)
-     * OpenRouteService Directions API поддерживает до 50 waypoints для пешего маршрута
+     * Получает маршрут через несколько точек И ВРЕМЯ
      */
-    public void getMultiPointRoute(List<Point> points, ORSCallback callback) {
+    public void getMultiPointRoute(List<Point> points, ORSCallbackWithDuration callback) {
         if (points == null || points.size() < 2) {
             callback.onError("Необходимо минимум 2 точки для построения маршрута");
             return;
@@ -94,7 +100,6 @@ public class OpenRouteServiceClient {
                 JSONObject body = new JSONObject();
                 JSONArray coords = new JSONArray();
 
-                // Добавляем все точки в массив координат
                 for (Point point : points) {
                     coords.put(new JSONArray().put(point.getLongitude()).put(point.getLatitude()));
                 }
@@ -109,7 +114,7 @@ public class OpenRouteServiceClient {
                 conn.setRequestProperty("Authorization", API_KEY);
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(15000); // Увеличенный таймаут для множественных точек
+                conn.setConnectTimeout(15000);
                 conn.setReadTimeout(15000);
 
                 try (OutputStream os = conn.getOutputStream()) {
@@ -124,6 +129,7 @@ public class OpenRouteServiceClient {
                     while ((errorLine = errorReader.readLine()) != null) {
                         errorResponse.append(errorLine);
                     }
+
                     Log.e("ORS", "HTTP Error " + responseCode + ": " + errorResponse.toString());
                     callback.onError("Ошибка сервера: " + responseCode);
                     return;
@@ -135,9 +141,22 @@ public class OpenRouteServiceClient {
                 while ((line = br.readLine()) != null) {
                     response.append(line);
                 }
+
                 br.close();
 
                 JSONObject jsonResponse = new JSONObject(response.toString());
+
+                // ===== ПОЛУЧАЕМ ВРЕМЯ МАРШРУТА (duration в секундах) =====
+                double durationSeconds = jsonResponse
+                        .getJSONArray("features")
+                        .getJSONObject(0)
+                        .getJSONObject("properties")
+                        .getJSONObject("summary")
+                        .getDouble("duration");
+
+                Log.d("ORS", "Время маршрута: " + durationSeconds + " сек");
+
+                // Получаем координаты
                 JSONArray coordinates = jsonResponse
                         .getJSONArray("features")
                         .getJSONObject(0)
@@ -151,13 +170,16 @@ public class OpenRouteServiceClient {
                 }
 
                 Log.d("ORS", "Маршрут успешно построен, точек в маршруте: " + routePoints.size());
-                callback.onSuccess(routePoints);
+
+                // Вызываем callback С ВРЕМЕНЕМ
+                callback.onSuccess(routePoints, durationSeconds);
 
             } catch (Exception e) {
                 Log.e("ORS", "Ошибка при запросе многоточечного маршрута: " + e.getMessage());
                 e.printStackTrace();
                 callback.onError(e.getMessage());
             }
+
         }).start();
     }
 }
