@@ -1,11 +1,11 @@
 package usecase
 
 import (
-	dto2 "YouSightSeeing/backend/internal/app/dto"
+	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/mappers"
-	uc_errors2 "YouSightSeeing/backend/internal/app/uc_errors"
-	entity2 "YouSightSeeing/backend/internal/domain/entity"
-	port2 "YouSightSeeing/backend/internal/domain/port"
+	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/domain/entity"
+	"YouSightSeeing/backend/internal/domain/port"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -17,20 +17,20 @@ import (
 )
 
 type GoogleAuthUC struct {
-	Users           port2.UserRepository
-	RefreshTokens   port2.TokenRepository
-	GoogleVerf      port2.GoogleVerifier
-	TokensGenerator port2.TokensGenerator
+	Users           port.UserRepository
+	RefreshTokens   port.TokenRepository
+	GoogleVerf      port.GoogleVerifier
+	TokensGenerator port.TokensGenerator
 }
 
-func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) (dto2.GoogleAuthResponse, error) {
+func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (dto.GoogleAuthResponse, error) {
 	/* ####################
 	   #	Validation    #
 	   ####################
 	*/
 	googleClaims, err := uc.validateGoogleToken(ctx, in.GoogleToken)
 	if err != nil {
-		return dto2.GoogleAuthResponse{}, err
+		return dto.GoogleAuthResponse{}, err
 	}
 
 	/* ####################
@@ -50,14 +50,14 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) 
 			rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx, existingUser.ID)
 
 			if genErr != nil {
-				return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.GenerateRefreshTokenError, genErr)
+				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateRefreshTokenError, genErr)
 			}
 
 			// Hashing token
 			hashedToken := hashToken(rawToken)
 
 			// TODO: Иметь возможность задать ExpiresAt через конфиг
-			newRefreshToken := &entity2.RefreshToken{
+			newRefreshToken := &entity.RefreshToken{
 				ID:        uuid.New(),
 				UserID:    existingUser.ID,
 				TokenHash: hashedToken,
@@ -66,23 +66,23 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) 
 			}
 
 			if createRefreshTokenErr := uc.RefreshTokens.Create(ctx, newRefreshToken); createRefreshTokenErr != nil {
-				return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.CreateRefreshTokenError, createRefreshTokenErr)
+				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.CreateRefreshTokenError, createRefreshTokenErr)
 			}
 
 			refreshToken = rawToken
 		} else if getTokenErr != nil {
-			return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.GetRefreshTokenByUserIDError, getTokenErr)
+			return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GetRefreshTokenByUserIDError, getTokenErr)
 		} else {
 			// Revoke an existing one
 			if revokeErr := uc.RefreshTokens.Revoke(ctx, existingToken.TokenHash, "new log in"); revokeErr != nil {
-				return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.RevokeRefreshTokenError, revokeErr)
+				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.RevokeRefreshTokenError, revokeErr)
 			}
 
 			// New token
 			rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx, existingUser.ID)
 
 			if genErr != nil {
-				return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.GenerateRefreshTokenError, genErr)
+				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateRefreshTokenError, genErr)
 			}
 
 			// Hashing token
@@ -94,7 +94,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) 
 			existingToken.ExpiresAt = time.Now().Add(time.Hour * 24 * 7).UTC()
 
 			if createRefreshTokenErr := uc.RefreshTokens.Create(ctx, existingToken); createRefreshTokenErr != nil {
-				return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.CreateRefreshTokenError, createRefreshTokenErr)
+				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.CreateRefreshTokenError, createRefreshTokenErr)
 			}
 
 			refreshToken = rawToken
@@ -102,10 +102,10 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) 
 
 		accessToken, err = uc.TokensGenerator.GenerateAccessToken(ctx, existingUser.ID)
 		if err != nil {
-			return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.GenerateAccessTokenError, err)
+			return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateAccessTokenError, err)
 		}
 
-		return dto2.GoogleAuthResponse{
+		return dto.GoogleAuthResponse{
 			AccessToken:  accessToken,
 			RefreshToken: refreshToken,
 			User:         mappers.MapUserIntoUserResponse(existingUser),
@@ -116,21 +116,21 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) 
 	newUser := mappers.MapGoogleClaimsIntoUser(googleClaims)
 
 	if createUserErr := uc.Users.Create(ctx, newUser); createUserErr != nil {
-		return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.CreateUserError, createUserErr)
+		return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.CreateUserError, createUserErr)
 	}
 
 	// New token
 	rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx, existingUser.ID)
 
 	if genErr != nil {
-		return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.GenerateRefreshTokenError, genErr)
+		return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateRefreshTokenError, genErr)
 	}
 
 	// Hashing token
 	hashedToken := hashToken(rawToken)
 
 	// TODO: Иметь возможность задать ExpiresAt через конфиг
-	newRefreshToken := &entity2.RefreshToken{
+	newRefreshToken := &entity.RefreshToken{
 		ID:        uuid.New(),
 		UserID:    newUser.ID,
 		TokenHash: hashedToken,
@@ -139,40 +139,40 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto2.GoogleAuthRequest) 
 	}
 
 	if createRefreshTokenErr := uc.RefreshTokens.Create(ctx, newRefreshToken); createRefreshTokenErr != nil {
-		return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.CreateRefreshTokenError, createRefreshTokenErr)
+		return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.CreateRefreshTokenError, createRefreshTokenErr)
 	}
 
 	accessToken, err = uc.TokensGenerator.GenerateAccessToken(ctx, newUser.ID)
 	if err != nil {
-		return dto2.GoogleAuthResponse{}, uc_errors2.Wrap(uc_errors2.GenerateAccessTokenError, err)
+		return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateAccessTokenError, err)
 	}
 
-	return dto2.GoogleAuthResponse{
+	return dto.GoogleAuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: rawToken,
 		User:         mappers.MapUserIntoUserResponse(newUser),
 	}, nil
 }
 
-func (uc *GoogleAuthUC) validateGoogleToken(ctx context.Context, token string) (*entity2.GoogleClaims, error) {
+func (uc *GoogleAuthUC) validateGoogleToken(ctx context.Context, token string) (*entity.GoogleClaims, error) {
 	if token == "" {
-		return nil, uc_errors2.EmptyGoogleTokenError
+		return nil, uc_errors.EmptyGoogleTokenError
 	}
 
 	googleClaims, err := uc.GoogleVerf.VerifyToken(ctx, token)
 	if err != nil {
-		return nil, uc_errors2.Wrap(uc_errors2.GoogleTokenValidationError, err)
+		return nil, uc_errors.Wrap(uc_errors.GoogleTokenValidationError, err)
 	}
 
 	if googleClaims.Sub == "" {
-		return nil, uc_errors2.Wrap(uc_errors2.EmptyGoogleSubError, err)
+		return nil, uc_errors.Wrap(uc_errors.EmptyGoogleSubError, err)
 	}
 	if googleClaims.Email == "" {
-		return nil, uc_errors2.Wrap(uc_errors2.EmptyEmailError, err)
+		return nil, uc_errors.Wrap(uc_errors.EmptyEmailError, err)
 	}
 
 	if !googleClaims.EmailVerified {
-		return nil, uc_errors2.EmailNotVerifiedError
+		return nil, uc_errors.EmailNotVerifiedError
 	}
 
 	return googleClaims, nil

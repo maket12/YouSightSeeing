@@ -2,13 +2,13 @@ package mappers
 
 import (
 	"YouSightSeeing/backend/internal/app/dto"
-	entity2 "YouSightSeeing/backend/internal/domain/entity"
+	"YouSightSeeing/backend/internal/domain/entity"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-func MapUserIntoUserResponse(user *entity2.User) dto.UserResponse {
+func MapUserIntoUserResponse(user *entity.User) dto.UserResponse {
 	if user != nil {
 		return dto.UserResponse{
 			ID:            user.ID,
@@ -28,9 +28,9 @@ func MapUserIntoUserResponse(user *entity2.User) dto.UserResponse {
 	return dto.UserResponse{}
 }
 
-func MapGoogleClaimsIntoUser(claims *entity2.GoogleClaims) *entity2.User {
+func MapGoogleClaimsIntoUser(claims *entity.GoogleClaims) *entity.User {
 	now := time.Now().UTC()
-	return &entity2.User{
+	return &entity.User{
 		ID:            uuid.New(),
 		GoogleSub:     claims.Sub,
 		Email:         claims.Email,
