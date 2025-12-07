@@ -37,6 +37,7 @@ func (uc *LogoutUC) Execute(ctx context.Context, in dto.LogoutRequest) (dto.Logo
 	}
 
 	return dto.LogoutResponse{
+		UserID: refreshToken.UserID,
 		Logout: true,
 	}, nil
 }
