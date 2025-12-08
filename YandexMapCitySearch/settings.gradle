@@ -11,7 +11,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        //jcenter()  // Для старых артефактов, если нужно
     }
 }
 rootProject.name = "YandexMapCitySearch"

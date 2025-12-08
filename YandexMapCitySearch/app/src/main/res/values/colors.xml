@@ -1,13 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#FF6200EE</color> <!-- purple_500 -->
-    <color name="colorPrimaryDark">#FF3700B3</color> <!-- purple_700 -->
-    <color name="colorAccent">#FF03DAC5</color> <!-- teal_200 -->
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Основные цвета приложения (бирюзовая палитра) -->
+    <color name="colorPrimary">#5EABB1</color>
+    <color name="colorPrimaryDark">#3D8084</color>
+    <color name="colorAccent">#A8D5D8</color>
+
+    <!-- Material Design 3 цвета (замена фиолетовых на бирюзовые) -->
+    <color name="purple_200">#A8D5D8</color>
+    <color name="purple_500">#5EABB1</color>
+    <color name="purple_700">#3D8084</color>
+    <color name="teal_200">#A8D5D8</color>
+    <color name="teal_700">#3D8084</color>
+
+    <!-- Базовые цвета -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Цвета темы приложения -->
+    <color name="teal_primary">#5EABB1</color>
+    <color name="teal_dark">#3D8084</color>
+    <color name="teal_light">#A8D5D8</color>
+    <color name="teal_extra_light">#D4EBEC</color>
+
+    <!-- Цвета для текста -->
+    <color name="text_primary">#2C5F61</color>
+    <color name="text_on_teal">#FFFFFF</color>
+
+    <!-- Цвета для Chip (кнопки категорий) -->
+    <color name="chip_selected">#A8D5D8</color>
+    <color name="chip_unselected">#D4EBEC</color>
+    <color name="chip_text">#2C5F61</color>
 </resources>
