@@ -13,15 +13,21 @@ type AuthHandler struct {
 	log       *slog.Logger
 	AuthUC    *usecase.GoogleAuthUC
 	RefreshUC *usecase.RefreshTokenUC
+	LogoutUC  *usecase.LogoutUC
 }
 
 func NewAuthHandler(
 	log *slog.Logger,
 	authUC *usecase.GoogleAuthUC,
+	refreshUC *usecase.RefreshTokenUC,
+	logoutUC *usecase.LogoutUC,
+
 ) *AuthHandler {
 	return &AuthHandler{
-		log:    log,
-		AuthUC: authUC,
+		log:       log,
+		AuthUC:    authUC,
+		RefreshUC: refreshUC,
+		LogoutUC:  logoutUC,
 	}
 }
 
@@ -68,6 +74,30 @@ func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
 	}
 
 	h.log.InfoContext(ctx, "successful tokens refresh",
+		slog.String("user_id", resp.User.ID.String()))
+
+	ctx.JSON(http.StatusOK, resp)
+}
+
+func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
+	var req dto.RefreshTokenRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+
+	resp, err := h.RefreshUC.Execute(ctx, req)
+	if err != nil {
+		status, msg, internalErr := HttpError(err)
+		h.log.ErrorContext(ctx, "failed to refresh tokens",
+			slog.Int("status", status),
+			slog.String("public_msg", msg),
+			slog.Any("cause", internalErr))
+		ctx.JSON(status, gin.H{"error": msg})
+		return
+	}
+
+	h.log.InfoContext(ctx, "successful logout",
 		slog.String("user_id", resp.User.ID.String()))
 
 	ctx.JSON(http.StatusOK, resp)

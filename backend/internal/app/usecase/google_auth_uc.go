@@ -4,12 +4,11 @@ import (
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/mappers"
 	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/app/utils"
 	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"time"
 
@@ -77,7 +76,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 			}
 
 			// Hashing token
-			hashedToken := hashToken(rawToken)
+			hashedToken := utils.HashToken(rawToken)
 
 			// TODO: Иметь возможность задать ExpiresAt через конфиг
 			newRefreshToken := &entity.RefreshToken{
@@ -109,7 +108,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 			}
 
 			// Hashing token
-			hashedToken := hashToken(rawToken)
+			hashedToken := utils.HashToken(rawToken)
 
 			existingToken.ID = uuid.New()
 			existingToken.TokenHash = hashedToken
@@ -150,7 +149,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 	}
 
 	// Hashing token
-	hashedToken := hashToken(rawToken)
+	hashedToken := utils.HashToken(rawToken)
 
 	// TODO: Иметь возможность задать ExpiresAt через конфиг
 	newRefreshToken := &entity.RefreshToken{
@@ -199,9 +198,4 @@ func (uc *GoogleAuthUC) validateGoogleToken(ctx context.Context, token string) (
 	}
 
 	return googleClaims, nil
-}
-
-func hashToken(token string) string {
-	hash := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(hash[:])
 }
