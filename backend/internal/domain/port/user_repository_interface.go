@@ -13,5 +13,5 @@ type UserRepository interface {
 	GetByGoogleSub(ctx context.Context, googleSub string) (*entity.User, error)
 	Update(ctx context.Context, user *entity.User) error
 	Delete(ctx context.Context, id uuid.UUID) error
-	GetList(ctx context.Context) ([]entity.User, error)
+	GetList(ctx context.Context, limit, offset int) ([]entity.User, error)
 }

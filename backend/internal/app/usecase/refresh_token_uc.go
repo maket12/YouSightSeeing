@@ -4,6 +4,7 @@ import (
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/mappers"
 	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/app/utils"
 	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
@@ -70,7 +71,7 @@ func (uc *RefreshTokenUC) Execute(ctx context.Context, in dto.RefreshTokenReques
 
 // getOldRefreshToken Gives information about given refresh token
 func (uc *RefreshTokenUC) getOldRefreshToken(ctx context.Context, token string) (*entity.RefreshToken, error) {
-	hashedToken := hashToken(token)
+	hashedToken := utils.HashToken(token)
 
 	refreshToken, err := uc.RefreshTokens.GetByHash(ctx, hashedToken)
 	if err != nil {
@@ -108,7 +109,7 @@ func (uc *RefreshTokenUC) rotateRefreshToken(ctx context.Context, oldToken *enti
 	newToken := &entity.RefreshToken{
 		ID:        uuid.New(),
 		UserID:    oldToken.UserID,
-		TokenHash: hashToken(newTokenString),
+		TokenHash: utils.HashToken(newTokenString),
 		IssuedAt:  time.Now().UTC(),
 		ExpiresAt: time.Now().Add(uc.RefreshTokenTTL).UTC(),
 	}
