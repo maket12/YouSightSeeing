@@ -11,14 +11,20 @@ import (
 )
 
 type TokensGenerator struct {
-	accessSecret  []byte
-	refreshSecret []byte
+	accessSecret    []byte
+	refreshSecret   []byte
+	accessTokenTTL  time.Duration
+	refreshTokenTTL time.Duration
 }
 
-func NewTokensGenerator(accessSecret, refreshSecret []byte) *TokensGenerator {
+func NewTokensGenerator(
+	accessSecret, refreshSecret []byte,
+	accessTTL, refreshTTL time.Duration) *TokensGenerator {
 	return &TokensGenerator{
-		accessSecret:  accessSecret,
-		refreshSecret: refreshSecret,
+		accessSecret:    accessSecret,
+		refreshSecret:   refreshSecret,
+		accessTokenTTL:  accessTTL,
+		refreshTokenTTL: refreshTTL,
 	}
 }
 
@@ -29,7 +35,7 @@ func (gen *TokensGenerator) GenerateAccessToken(ctx context.Context, userID uuid
 	}
 
 	// TODO: иметь возможность устанавливать срок жизни через конфиг
-	jwtClaims := toJwtAccess(claims, time.Minute*15)
+	jwtClaims := toJwtAccess(claims, gen.accessTokenTTL)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims)
 	return token.SignedString(gen.accessSecret)
@@ -41,7 +47,7 @@ func (gen *TokensGenerator) GenerateRefreshToken(ctx context.Context) (string, e
 	}
 
 	// TODO: иметь возможность устанавливать срок жизни через конфиг
-	jwtClaims := toJwtRefresh(claims, time.Hour*24*7)
+	jwtClaims := toJwtRefresh(claims, gen.refreshTokenTTL)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwtClaims)
 	return token.SignedString(gen.refreshSecret)
