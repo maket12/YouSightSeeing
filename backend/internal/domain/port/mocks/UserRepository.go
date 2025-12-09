@@ -112,9 +112,9 @@ func (_m *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Us
 	return r0, r1
 }
 
-// GetList provides a mock function with given fields: ctx
-func (_m *UserRepository) GetList(ctx context.Context) ([]entity.User, error) {
-	ret := _m.Called(ctx)
+// GetList provides a mock function with given fields: ctx, limit, offset
+func (_m *UserRepository) GetList(ctx context.Context, limit int, offset int) ([]entity.User, error) {
+	ret := _m.Called(ctx, limit, offset)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetList")
@@ -122,19 +122,19 @@ func (_m *UserRepository) GetList(ctx context.Context) ([]entity.User, error) {
 
 	var r0 []entity.User
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]entity.User, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) ([]entity.User, error)); ok {
+		return rf(ctx, limit, offset)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) []entity.User); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, int, int) []entity.User); ok {
+		r0 = rf(ctx, limit, offset)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]entity.User)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, int, int) error); ok {
+		r1 = rf(ctx, limit, offset)
 	} else {
 		r1 = ret.Error(1)
 	}
