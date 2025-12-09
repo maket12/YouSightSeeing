@@ -79,17 +79,17 @@ func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, resp)
 }
 
-func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
-	var req dto.RefreshTokenRequest
+func (h *AuthHandler) Logout(ctx *gin.Context) {
+	var req dto.LogoutRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
 		return
 	}
 
-	resp, err := h.RefreshUC.Execute(ctx, req)
+	resp, err := h.LogoutUC.Execute(ctx, req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
-		h.log.ErrorContext(ctx, "failed to refresh tokens",
+		h.log.ErrorContext(ctx, "failed to logout",
 			slog.Int("status", status),
 			slog.String("public_msg", msg),
 			slog.Any("cause", internalErr))
@@ -98,7 +98,7 @@ func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
 	}
 
 	h.log.InfoContext(ctx, "successful logout",
-		slog.String("user_id", resp.User.ID.String()))
+		slog.String("user_id", resp.UserID.String()))
 
 	ctx.JSON(http.StatusOK, resp)
 }
