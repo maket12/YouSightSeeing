@@ -8,6 +8,11 @@ android {
     namespace 'com.example.yousightseeingdesign'
     compileSdk 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
+
     defaultConfig {
         applicationId "com.example.yousightseeingdesign"
         minSdk 36
@@ -16,6 +21,7 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField "String", "MAPKIT_API_KEY", "\"64f967c6-2825-410c-8ec1-2219f2852080\""
     }
 
     buildTypes {
@@ -37,6 +43,12 @@ android {
 }
 
 dependencies {
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.yandex.android:maps.mobile:4.23.0-navikit'
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
     implementation libs.androidx.core.ktx
     implementation libs.androidx.lifecycle.runtime.ktx
@@ -49,11 +61,15 @@ dependencies {
     implementation libs.androidx.appcompat
     implementation libs.androidx.constraintlayout
     implementation libs.androidx.constraintlayout.core
+    implementation libs.material
+
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core
+
     androidTestImplementation platform(libs.androidx.compose.bom)
     androidTestImplementation libs.androidx.compose.ui.test.junit4
+
     debugImplementation libs.androidx.compose.ui.tooling
     debugImplementation libs.androidx.compose.ui.test.manifest
 }

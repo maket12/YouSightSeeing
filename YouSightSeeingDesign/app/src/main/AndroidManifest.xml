@@ -2,14 +2,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Разрешения -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+
     <application
+        android:name=".MyApplication"
         android:allowBackup="true"
         android:label="YouSightSeeing"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
-        <!-- Заставка (главная активность) -->
-        <activity android:name="._1"
+        <!-- Ключ Yandex MapKit -->
+        <meta-data
+            android:name="com.yandex.mapkit.mapkit.API_KEY"
+            android:value="64f967c6-2825-410c-8ec1-2219f2852080" />
+
+        <!-- Launcher activity - ВАШ ._1 -->
+        <activity
+            android:name="._1"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -17,18 +31,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Экран регистрации -->
-        <activity android:name=".RegisterActivity"
-            android:exported="true"/>
-
-        <!-- Экран категорий -->
-        <activity android:name=".CategoriesActivity"
-            android:exported="true"/>
-
-        <!-- Экран разрешений -->
-        <activity android:name=".PermissionActivity"
-            android:exported="true"/>
+        <!-- Остальные активности -->
+        <activity android:name=".RegisterActivity" android:exported="false"/>
+        <activity android:name=".CategoriesActivity" android:exported="false"/>
+        <activity android:name=".PermissionActivity" android:exported="false"/>
+        <activity android:name=".MainActivity" android:exported="false"/>
 
     </application>
-
 </manifest>

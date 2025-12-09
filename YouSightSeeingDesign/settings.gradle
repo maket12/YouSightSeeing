@@ -9,6 +9,8 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven { url 'https://maven.pkg.github.com/yandex/maps-mobile-sdk' }
+        maven { url "https://maven.yandex.ru/nexus/content/groups/public" }
     }
 }
 dependencyResolutionManagement {
@@ -16,6 +18,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+
+        maven { url "https://maven.yandex.ru/nexus/content/groups/public" }
     }
 }
 
