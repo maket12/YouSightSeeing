@@ -120,7 +120,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 	}
 
 	// New token
-	rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx, newUser.ID)
+	rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx)
 
 	if genErr != nil {
 		return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateRefreshTokenError, genErr)

@@ -9,7 +9,7 @@ import (
 
 type TokensGenerator interface {
 	GenerateAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
-	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (string, error)
+	GenerateRefreshToken(ctx context.Context) (string, error)
 	ParseAccessToken(ctx context.Context, token string) (*entity.AccessClaims, error)
 	ParseRefreshToken(ctx context.Context, token string) (*entity.RefreshClaims, error)
 }

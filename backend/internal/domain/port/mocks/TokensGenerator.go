@@ -45,8 +45,8 @@ func (_m *TokensGenerator) GenerateAccessToken(ctx context.Context, userID uuid.
 }
 
 // GenerateRefreshToken provides a mock function with given fields: ctx, userID
-func (_m *TokensGenerator) GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (string, error) {
-	ret := _m.Called(ctx, userID)
+func (_m *TokensGenerator) GenerateRefreshToken(ctx context.Context,) (string, error) {
+	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GenerateRefreshToken")
@@ -54,17 +54,17 @@ func (_m *TokensGenerator) GenerateRefreshToken(ctx context.Context, userID uuid
 
 	var r0 string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) (string, error)); ok {
-		return rf(ctx, userID)
+	if rf, ok := ret.Get(0).(func(context.Context) (string, error)); ok {
+		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) string); ok {
-		r0 = rf(ctx, userID)
+	if rf, ok := ret.Get(0).(func(context.Context) string); ok {
+		r0 = rf(ctx)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uuid.UUID) error); ok {
-		r1 = rf(ctx, userID)
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
