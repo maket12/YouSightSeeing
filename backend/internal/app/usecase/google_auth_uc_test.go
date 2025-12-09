@@ -15,367 +15,324 @@ import (
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
-
-	mocks "YouSightSeeing/backend/internal/domain/port/mocks"
+	"YouSightSeeing/backend/internal/domain/port/mocks"
 )
 
-func TestGoogleAuthUC_Execute(t *testing.T) {
-	// Подготовка общих тестовых данных
-	validToken := "valid_google_token"
-	validSub := "google_12345"
-	validEmail := "test@example.com"
-	userID := uuid.New()
+/*
+	===========================
+	 STRUCTURE OF TEST CASE
+	===========================
+*/
 
-	validClaims := &entity.GoogleClaims{
-		Sub:           validSub,
-		Email:         validEmail,
-		EmailVerified: true,
-	}
+type GoogleAuthCase struct {
+	Name string
 
-	existingUser := &entity.User{
-		ID:    userID,
-		Email: validEmail,
-	}
+	Input   dto.GoogleAuthRequest
+	WantErr error
 
-	// Структура тестового кейса
-	type testCase struct {
-		name      string
-		input     dto.GoogleAuthRequest
-		mockSetup func(
-			u *mocks.UserRepository,
-			tr *mocks.TokenRepository,
-			gv *mocks.GoogleVerifier,
-			tg *mocks.TokensGenerator,
-		)
-		wantErr error
-	}
+	ExpectAccess  bool
+	ExpectRefresh bool
+	MockPreset    string
+}
 
-	tests := []testCase{
-		{
-			name:  "Error: Empty Google Token",
-			input: dto.GoogleAuthRequest{GoogleToken: ""},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				// Моки не вызываются, валидация происходит до вызовов
-			},
-			wantErr: uc_errors.EmptyGoogleTokenError,
-		},
-		{
-			name:  "Error: Invalid Google Token",
-			input: dto.GoogleAuthRequest{GoogleToken: "invalid_token"},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, "invalid_token").Return(nil, errors.New("invalid"))
-			},
-			wantErr: uc_errors.GoogleTokenValidationError,
-		},
-		{
-			name:  "Error: Email Not Verified",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(&entity.GoogleClaims{
-					Sub: validSub, Email: validEmail, EmailVerified: false,
-				}, nil)
-			},
-			wantErr: uc_errors.EmailNotVerifiedError,
-		},
-		{
-			name:  "Success: New User (Registration)",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				// 1. Успешная верификация токена
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
+/*
+	===========================
+	PRESETS FOR MOCK BEHAVIOR
+	===========================
+*/
 
-				// 2. Пользователь не найден (sql.ErrNoRows) -> сценарий регистрации
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
+type MockPresetFunc func(
+	u *mocks.UserRepository,
+	tr *mocks.TokenRepository,
+	gv *mocks.GoogleVerifier,
+	tg *mocks.TokensGenerator,
+)
 
-				// 3. Создание нового пользователя
-				// Используем MatchedBy, чтобы проверить поля создаваемого объекта
-				u.On("Create", mock.Anything, mock.MatchedBy(func(user *entity.User) bool {
-					return user.Email == validEmail
-				})).Return(nil)
+var validSub = "google_sub_1"
+var validEmail = "a@b.com"
+var validClaims = &entity.GoogleClaims{
+	Sub: validSub, Email: validEmail, EmailVerified: true,
+}
+var userID = uuid.New()
 
-				// 4. Генерация refresh-токена
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("refresh_token_123", nil)
+var mockPresets = map[string]MockPresetFunc{
+	"EmptyToken": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+	},
 
-				// 5. Сохранение refresh-токена
-				tr.On("Create", mock.Anything, mock.Anything).Return(nil)
+	"InvalidGoogleToken": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "invalid").
+			Return(nil, errors.New("invalid"))
+	},
 
-				// 6. Генерация access-токена
-				tg.On("GenerateAccessToken", mock.Anything, mock.Anything).Return("access_token_123", nil)
-			},
-			wantErr: nil,
-		},
-		{
-			name:  "Success: Existing User (Login with expired token / No token)",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				// 1. Верификация
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
+	"EmailNotVerified": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(&entity.GoogleClaims{Sub: validSub, Email: validEmail, EmailVerified: false}, nil)
+	},
 
-				// 2. Пользователь найден
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+	"EmptyEmail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(&entity.GoogleClaims{Sub: validSub, Email: "", EmailVerified: true}, nil)
+	},
 
-				// 3. Активный токен не найден
-				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
+	"EmptySub": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(&entity.GoogleClaims{Sub: "", Email: validEmail, EmailVerified: true}, nil)
+	},
 
-				// 4. Генерация нового refresh-токена
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("refresh_token_new", nil)
+	/*
+		============================
+		  NEW USER FLOW
+		============================
+	*/
 
-				// 5. Сохранение нового токена (без отзыва старого, так как его нет)
-				tr.On("Create", mock.Anything, mock.MatchedBy(func(t *entity.RefreshToken) bool {
-					return t.UserID == userID
-				})).Return(nil)
+	"NewUserSuccess": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(validClaims, nil)
 
-				// 6. Генерация access-токена
-				tg.On("GenerateAccessToken", mock.Anything, userID).Return("access_token_new", nil)
-			},
-			wantErr: nil,
-		},
-		{
-			name:  "Success: Existing User (Token Rotation)",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				// 1. Верификация
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).
+			Return(nil, sql.ErrNoRows)
 
-				// 2. Пользователь найден
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+		u.On("Create", mock.Anything, mock.Anything).
+			Return(nil)
 
-				// 3. Найден старый активный токен
-				oldToken := &entity.RefreshToken{
-					ID:        uuid.New(),
-					UserID:    userID,
-					TokenHash: "old_hash_value",
-					ExpiresAt: time.Now().Add(time.Hour),
-				}
-				tr.On("GetByUserID", mock.Anything, userID).Return(oldToken, nil)
+		tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).
+			Return("ref123", nil)
 
-				// 4. Отзыв старого токена (Revoke)
-				tr.On("Revoke", mock.Anything, "old_hash_value", "new log in").Return(nil)
+		tr.On("Create", mock.Anything, mock.Anything).
+			Return(nil)
 
-				// 5. Генерация нового токена
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("refresh_token_rotated", nil)
+		tg.On("GenerateAccessToken", mock.Anything, mock.Anything).
+			Return("acc123", nil)
+	},
 
-				// 6. Сохранение нового токена
-				tr.On("Create", mock.Anything, mock.MatchedBy(func(t *entity.RefreshToken) bool {
-					return t.UserID == userID
-				})).Return(nil)
+	"NewUserCreateFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(validClaims, nil)
 
-				// 7. Генерация access-токена
-				tg.On("GenerateAccessToken", mock.Anything, userID).Return("access_token_rotated", nil)
-			},
-			wantErr: nil,
-		},
-		{
-			name:  "Error: Database Fail on Create User",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
+		u.On("GetByGoogleSub", mock.Anything, validSub).
+			Return(nil, sql.ErrNoRows)
 
-				// Ошибка БД при создании пользователя
-				u.On("Create", mock.Anything, mock.Anything).Return(errors.New("db connection error"))
-			},
-			wantErr: uc_errors.CreateUserError,
-		},
-		{
-			name:  "Error: Validation - Empty Email",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				// Возвращаем Claims без Email
-				gv.On("VerifyToken", mock.Anything, validToken).Return(&entity.GoogleClaims{
-					Sub: validSub, Email: "", EmailVerified: true,
-				}, nil)
-			},
-			wantErr: uc_errors.EmptyEmailError,
-		},
-		{
-			name:  "Error: Validation - Empty Sub",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				// Возвращаем Claims без Sub
-				gv.On("VerifyToken", mock.Anything, validToken).Return(&entity.GoogleClaims{
-					Sub: "", Email: validEmail, EmailVerified: true,
-				}, nil)
-			},
-			wantErr: uc_errors.EmptyGoogleSubError,
-		},
-		{
-			name:  "Error: New User - Generate Refresh Token Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
-				u.On("Create", mock.Anything, mock.Anything).Return(nil)
+		u.On("Create", mock.Anything, mock.Anything).
+			Return(errors.New("db"))
+	},
 
-				// Ошибка генерации
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("", errors.New("gen fail"))
-			},
-			wantErr: uc_errors.GenerateRefreshTokenError,
-		},
-		{
-			name:  "Error: New User - Save Refresh Token Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
-				u.On("Create", mock.Anything, mock.Anything).Return(nil)
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("ref_token", nil)
+	"NewUserRefreshGenFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
+		u.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-				// Ошибка сохранения в БД
-				tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("db fail"))
-			},
-			wantErr: uc_errors.CreateRefreshTokenError,
-		},
-		{
-			name:  "Error: New User - Generate Access Token Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
-				u.On("Create", mock.Anything, mock.Anything).Return(nil)
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("ref_token", nil)
-				tr.On("Create", mock.Anything, mock.Anything).Return(nil)
+		tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).
+			Return("", errors.New("fail"))
+	},
 
-				// Ошибка генерации Access
-				tg.On("GenerateAccessToken", mock.Anything, mock.Anything).Return("", errors.New("gen access fail"))
-			},
-			wantErr: uc_errors.GenerateAccessTokenError,
-		},
-		{
-			name:  "Error: Existing User (No Token) - Gen Refresh Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
-				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
+	"NewUserRefreshSaveFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
+		u.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-				// Ошибка тут
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("", errors.New("gen fail"))
-			},
-			wantErr: uc_errors.GenerateRefreshTokenError,
-		},
-		{
-			name:  "Error: Existing User - DB Error on Get Token",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+		tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).
+			Return("ref", nil)
 
-				// Ошибка БД (НЕ sql.ErrNoRows, а любая другая)
-				tr.On("GetByUserID", mock.Anything, userID).Return(nil, errors.New("connection broken"))
-			},
-			wantErr: uc_errors.GetRefreshTokenByUserIDError,
-		},
-		{
-			name:  "Error: Existing User - Revoke Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+		tr.On("Create", mock.Anything, mock.Anything).
+			Return(errors.New("fail"))
+	},
 
-				oldToken := &entity.RefreshToken{ID: uuid.New(), UserID: userID, TokenHash: "hash"}
-				tr.On("GetByUserID", mock.Anything, userID).Return(oldToken, nil)
+	"NewUserAccessGenFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
+		u.On("Create", mock.Anything, mock.Anything).Return(nil)
+		tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("ref", nil)
+		tr.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-				// Ошибка отзыва токена
-				tr.On("Revoke", mock.Anything, "hash", "new log in").Return(errors.New("revoke fail"))
-			},
-			wantErr: uc_errors.RevokeRefreshTokenError,
-		},
-		{
-			name:  "Error: Existing User (No Token) - Generate Access Token Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+		tg.On("GenerateAccessToken", mock.Anything, mock.Anything).
+			Return("", errors.New("fail"))
+	},
 
-				// 1. Токена нет (Expired)
-				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
+	/*
+		============================
+		  EXISTING USER – NO TOKEN
+		============================
+	*/
+	"ExistingNoTokenSuccess": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID, Email: validEmail}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
-				// 2. Refresh создался успешно
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref_token", nil)
-				tr.On("Create", mock.Anything, mock.Anything).Return(nil)
+		tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref2", nil)
+		tr.On("Create", mock.Anything, mock.Anything).Return(nil)
+		tg.On("GenerateAccessToken", mock.Anything, userID).Return("acc2", nil)
+	},
 
-				// 3. А вот Access упал <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
-				tg.On("GenerateAccessToken", mock.Anything, userID).Return("", errors.New("access gen fail"))
-			},
-			wantErr: uc_errors.GenerateAccessTokenError,
-		},
-		{
-			name:  "Error: Existing User (No Token) - Create Refresh Token Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+	"ExistingNoTokenRefreshGenFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
-				// 1. Токена нет
-				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
+		tg.On("GenerateRefreshToken", mock.Anything, userID).Return("", errors.New("fail"))
+	},
 
-				// 2. Сгенерировали успешно
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref_token", nil)
+	"ExistingNoTokenRefreshSaveFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
-				// 3. Но сохранить в БД не смогли <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
-				tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("db create fail"))
-			},
-			wantErr: uc_errors.CreateRefreshTokenError,
-		},
-		{
-			name:  "Error: Existing User (Rotation) - Generate Refresh Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+		tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref", nil)
+		tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("fail"))
+	},
 
-				// 1. Старый токен есть
-				oldToken := &entity.RefreshToken{ID: uuid.New(), UserID: userID, TokenHash: "hash"}
-				tr.On("GetByUserID", mock.Anything, userID).Return(oldToken, nil)
+	"ExistingNoTokenAccessFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
+		tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref", nil)
+		tr.On("Create", mock.Anything, mock.Anything).Return(nil)
 
-				// 2. Отозвали успешно
-				tr.On("Revoke", mock.Anything, "hash", "new log in").Return(nil)
+		tg.On("GenerateAccessToken", mock.Anything, userID).Return("", errors.New("fail"))
+	},
 
-				// 3. А новый сгенерировать не вышло <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("", errors.New("gen fail"))
-			},
-			wantErr: uc_errors.GenerateRefreshTokenError,
-		},
-		{
-			name:  "Error: Existing User (Rotation) - Create Refresh Fail",
-			input: dto.GoogleAuthRequest{GoogleToken: validToken},
-			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
-				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
-				u.On("GetByGoogleSub", mock.Anything, validSub).Return(existingUser, nil)
+	/*
+		============================
+		  EXISTING USER – ROTATION
+		============================
+	*/
+	"ExistingTokenSuccess": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).
+			Return(&entity.User{ID: userID}, nil)
 
-				// 1. Старый токен есть
-				oldToken := &entity.RefreshToken{ID: uuid.New(), UserID: userID, TokenHash: "hash"}
-				tr.On("GetByUserID", mock.Anything, userID).Return(oldToken, nil)
+		old := &entity.RefreshToken{
+			ID: uuid.New(), UserID: userID, TokenHash: "h", ExpiresAt: time.Now().Add(time.Hour),
+		}
+		tr.On("GetByUserID", mock.Anything, userID).Return(old, nil)
 
-				// 2. Отозвали успешно
-				tr.On("Revoke", mock.Anything, "hash", "new log in").Return(nil)
+		tr.On("Revoke", mock.Anything, "h", "new log in").Return(nil)
+		tg.On("GenerateRefreshToken", mock.Anything, userID).Return("rr", nil)
+		tr.On("Create", mock.Anything, mock.Anything).Return(nil)
+		tg.On("GenerateAccessToken", mock.Anything, userID).Return("aa", nil)
+	},
 
-				// 3. Сгенерировали успешно
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("new_ref", nil)
+	"ExistingTokenRevokeFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(&entity.RefreshToken{TokenHash: "h"}, nil)
 
-				// 4. Но сохранить новый не вышло <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
-				tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("db fail"))
-			},
-			wantErr: uc_errors.CreateRefreshTokenError,
-		},
-	}
+		tr.On("Revoke", mock.Anything, "h", "new log in").
+			Return(errors.New("fail"))
+	},
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Инициализация моков, сгенерированных mockery.
-			// Мы передаем 't', чтобы моки автоматически фейлили тест при неожиданных вызовах.
+	"ExistingTokenRefreshGenFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(&entity.RefreshToken{TokenHash: "h"}, nil)
+		tr.On("Revoke", mock.Anything, "h", "new log in").Return(nil)
+
+		tg.On("GenerateRefreshToken", mock.Anything, userID).
+			Return("", errors.New("fail"))
+	},
+
+	"ExistingTokenRefreshSaveFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").Return(validClaims, nil)
+		u.On("GetByGoogleSub", mock.Anything, validSub).Return(&entity.User{ID: userID}, nil)
+		tr.On("GetByUserID", mock.Anything, userID).Return(&entity.RefreshToken{TokenHash: "h"}, nil)
+		tr.On("Revoke", mock.Anything, "h", "new log in").Return(nil)
+		tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ok", nil)
+
+		tr.On("Create", mock.Anything, mock.Anything).
+			Return(errors.New("fail"))
+	},
+
+	"ExistingTokenGetFail": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(validClaims, nil)
+
+		u.On("GetByGoogleSub", mock.Anything, validSub).
+			Return(&entity.User{ID: userID}, nil)
+
+		tr.On("GetByUserID", mock.Anything, userID).
+			Return(nil, errors.New("db fail")) // <-- not sql.ErrNoRows
+	},
+
+	"HappyFullSuccess": func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+		gv.On("VerifyToken", mock.Anything, "token").
+			Return(validClaims, nil)
+
+		u.On("GetByGoogleSub", mock.Anything, validSub).
+			Return(&entity.User{ID: userID, Email: validEmail}, nil)
+
+		old := &entity.RefreshToken{
+			ID:        uuid.New(),
+			UserID:    userID,
+			TokenHash: "old_hash",
+			ExpiresAt: time.Now().Add(time.Hour),
+		}
+
+		tr.On("GetByUserID", mock.Anything, userID).
+			Return(old, nil)
+
+		tr.On("Revoke", mock.Anything, "old_hash", "new log in").
+			Return(nil)
+
+		tg.On("GenerateRefreshToken", mock.Anything, userID).
+			Return("new_ref_token", nil)
+
+		tr.On("Create", mock.Anything, mock.Anything).
+			Return(nil)
+
+		tg.On("GenerateAccessToken", mock.Anything, userID).
+			Return("new_access_token", nil)
+	},
+}
+
+/*
+	===========================
+	   TABLE OF TEST CASES
+	===========================
+*/
+
+var cases = []GoogleAuthCase{
+	{"Empty token", dto.GoogleAuthRequest{GoogleToken: ""}, uc_errors.EmptyGoogleTokenError, false, false, "EmptyToken"},
+	{"Invalid token", dto.GoogleAuthRequest{GoogleToken: "invalid"}, uc_errors.GoogleTokenValidationError, false, false, "InvalidGoogleToken"},
+
+	{"Email not verified", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.EmailNotVerifiedError, false, false, "EmailNotVerified"},
+	{"Empty email", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.EmptyEmailError, false, false, "EmptyEmail"},
+	{"Empty sub", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.EmptyGoogleSubError, false, false, "EmptySub"},
+
+	{"New user - success", dto.GoogleAuthRequest{GoogleToken: "token"}, nil, true, true, "NewUserSuccess"},
+	{"New user - create fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.CreateUserError, false, false, "NewUserCreateFail"},
+	{"New user - refresh gen fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.GenerateRefreshTokenError, false, false, "NewUserRefreshGenFail"},
+	{"New user - refresh save fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.CreateRefreshTokenError, false, false, "NewUserRefreshSaveFail"},
+	{"New user - access fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.GenerateAccessTokenError, false, false, "NewUserAccessGenFail"},
+
+	{"Existing no token - success", dto.GoogleAuthRequest{GoogleToken: "token"}, nil, true, true, "ExistingNoTokenSuccess"},
+	{"Existing no token - refresh gen fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.GenerateRefreshTokenError, false, false, "ExistingNoTokenRefreshGenFail"},
+	{"Existing no token - refresh save fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.CreateRefreshTokenError, false, false, "ExistingNoTokenRefreshSaveFail"},
+	{"Existing no token - access fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.GenerateAccessTokenError, false, false, "ExistingNoTokenAccessFail"},
+
+	{"Existing token - success", dto.GoogleAuthRequest{GoogleToken: "token"}, nil, true, true, "ExistingTokenSuccess"},
+	{"Existing token - revoke fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.RevokeRefreshTokenError, false, false, "ExistingTokenRevokeFail"},
+	{"Existing token - refresh gen fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.GenerateRefreshTokenError, false, false, "ExistingTokenRefreshGenFail"},
+	{"Existing token - refresh save fail", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.CreateRefreshTokenError, false, false, "ExistingTokenRefreshSaveFail"},
+
+	{"Existing user - GetByUserID DB error", dto.GoogleAuthRequest{GoogleToken: "token"}, uc_errors.GetRefreshTokenByUserIDError, false, false, "ExistingTokenGetFail"},
+	{"Happy path: full success scenario", dto.GoogleAuthRequest{GoogleToken: "token"}, nil, true, true, "HappyFullSuccess"},
+}
+
+/*
+	===========================
+	     TEST RUNNER
+	===========================
+*/
+
+func TestGoogleAuthUC_TableDriven(t *testing.T) {
+	for _, tt := range cases {
+		t.Run(tt.Name, func(t *testing.T) {
 			uRepo := mocks.NewUserRepository(t)
 			tRepo := mocks.NewTokenRepository(t)
 			gVerf := mocks.NewGoogleVerifier(t)
 			tGen := mocks.NewTokensGenerator(t)
 
-			// Настройка поведения моков для конкретного теста
-			if tt.mockSetup != nil {
-				tt.mockSetup(uRepo, tRepo, gVerf, tGen)
-			}
+			mockPresets[tt.MockPreset](uRepo, tRepo, gVerf, tGen)
 
-			// Инициализация юзкейса с внедрением зависимостей
 			uc := &usecase.GoogleAuthUC{
 				Users:           uRepo,
 				RefreshTokens:   tRepo,
@@ -383,23 +340,21 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				TokensGenerator: tGen,
 			}
 
-			// Выполнение тестируемого метода
-			resp, err := uc.Execute(context.Background(), tt.input)
+			resp, err := uc.Execute(context.Background(), tt.Input)
 
-			// Проверки (Asserts)
-			if tt.wantErr != nil {
+			if tt.WantErr != nil {
 				assert.Error(t, err)
-				// Проверяем, что ошибка соответствует ожидаемой (через errors.Is для обернутых ошибок)
-				assert.True(t, errors.Is(err, tt.wantErr), "expected error '%v' but got '%v'", tt.wantErr, err)
-			} else {
-				assert.NoError(t, err)
-				assert.NotEmpty(t, resp.AccessToken)
-				assert.NotEmpty(t, resp.RefreshToken)
+				assert.True(t, errors.Is(err, tt.WantErr))
+				return
+			}
 
-				// Дополнительная проверка: вернулся ли правильный email
-				if resp.User.Email != "" {
-					assert.Equal(t, validEmail, resp.User.Email)
-				}
+			assert.NoError(t, err)
+
+			if tt.ExpectAccess {
+				assert.NotEmpty(t, resp.AccessToken)
+			}
+			if tt.ExpectRefresh {
+				assert.NotEmpty(t, resp.RefreshToken)
 			}
 		})
 	}
