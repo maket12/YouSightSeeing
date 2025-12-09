@@ -21,6 +21,25 @@ type GoogleAuthUC struct {
 	RefreshTokens   port.TokenRepository
 	GoogleVerf      port.GoogleVerifier
 	TokensGenerator port.TokensGenerator
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
+}
+
+func NewGoogleAuthUC(
+	users port.UserRepository,
+	refreshTokens port.TokenRepository,
+	googleVerf port.GoogleVerifier,
+	tokensGenerator port.TokensGenerator,
+	accessTokenTTL time.Duration,
+	refreshTokenTTL time.Duration) *GoogleAuthUC {
+	return &GoogleAuthUC{
+		Users:           users,
+		RefreshTokens:   refreshTokens,
+		GoogleVerf:      googleVerf,
+		TokensGenerator: tokensGenerator,
+		AccessTokenTTL:  accessTokenTTL,
+		RefreshTokenTTL: refreshTokenTTL,
+	}
 }
 
 func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (dto.GoogleAuthResponse, error) {
@@ -40,14 +59,18 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 	var accessToken, refreshToken string
 
 	existingUser, err := uc.Users.GetByGoogleSub(ctx, googleClaims.Sub)
-	if err == nil {
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GetUserError, err)
+		}
+	} else {
 		// Get current refresh-token
 		existingToken, getTokenErr := uc.RefreshTokens.GetByUserID(ctx, existingUser.ID)
 
 		// If it is expired, create a new one
 		if errors.Is(getTokenErr, sql.ErrNoRows) {
 			// New token
-			rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx, existingUser.ID)
+			rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx)
 
 			if genErr != nil {
 				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateRefreshTokenError, genErr)
@@ -62,7 +85,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 				UserID:    existingUser.ID,
 				TokenHash: hashedToken,
 				IssuedAt:  time.Now().UTC(),
-				ExpiresAt: time.Now().Add(time.Hour * 24 * 7).UTC(),
+				ExpiresAt: time.Now().Add(uc.RefreshTokenTTL).UTC(),
 			}
 
 			if createRefreshTokenErr := uc.RefreshTokens.Create(ctx, newRefreshToken); createRefreshTokenErr != nil {
@@ -79,7 +102,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 			}
 
 			// New token
-			rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx, existingUser.ID)
+			rawToken, genErr := uc.TokensGenerator.GenerateRefreshToken(ctx)
 
 			if genErr != nil {
 				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.GenerateRefreshTokenError, genErr)
@@ -91,7 +114,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 			existingToken.ID = uuid.New()
 			existingToken.TokenHash = hashedToken
 			existingToken.IssuedAt = time.Now()
-			existingToken.ExpiresAt = time.Now().Add(time.Hour * 24 * 7).UTC()
+			existingToken.ExpiresAt = time.Now().Add(uc.RefreshTokenTTL).UTC()
 
 			if createRefreshTokenErr := uc.RefreshTokens.Create(ctx, existingToken); createRefreshTokenErr != nil {
 				return dto.GoogleAuthResponse{}, uc_errors.Wrap(uc_errors.CreateRefreshTokenError, createRefreshTokenErr)
@@ -135,7 +158,7 @@ func (uc *GoogleAuthUC) Execute(ctx context.Context, in dto.GoogleAuthRequest) (
 		UserID:    newUser.ID,
 		TokenHash: hashedToken,
 		IssuedAt:  time.Now().UTC(),
-		ExpiresAt: time.Now().Add(time.Hour * 24 * 7).UTC(),
+		ExpiresAt: time.Now().Add(uc.RefreshTokenTTL).UTC(),
 	}
 
 	if createRefreshTokenErr := uc.RefreshTokens.Create(ctx, newRefreshToken); createRefreshTokenErr != nil {
