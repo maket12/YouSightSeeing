@@ -14,7 +14,7 @@ import (
 	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
 
-	mocks "YouSightSeeing/backend/internal/domain/port/mocks"
+	"YouSightSeeing/backend/internal/domain/port/mocks"
 )
 
 func TestLogoutUC_Execute(t *testing.T) {
