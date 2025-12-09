@@ -44,7 +44,7 @@ func (_m *TokensGenerator) GenerateAccessToken(ctx context.Context, userID uuid.
 	return r0, r1
 }
 
-// GenerateRefreshToken provides a mock function with given fields: ctx, userID
+// GenerateRefreshToken provides a mock function with given fields: ctx
 func (_m *TokensGenerator) GenerateRefreshToken(ctx context.Context) (string, error) {
 	ret := _m.Called(ctx)
 
