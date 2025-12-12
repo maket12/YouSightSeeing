@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
 )
 
 type AuthHandler struct {
@@ -31,74 +31,68 @@ func NewAuthHandler(
 	}
 }
 
-func (h *AuthHandler) GoogleAuth(ctx *gin.Context) {
+func (h *AuthHandler) GoogleAuth(c echo.Context) error {
 	var req dto.GoogleAuthRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
-		return
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 	}
 
-	resp, err := h.AuthUC.Execute(ctx, req)
+	resp, err := h.AuthUC.Execute(c.Request().Context(), req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
-		h.log.ErrorContext(ctx, "failed to auth",
+		h.log.ErrorContext(c.Request().Context(), "failed to auth",
 			slog.Int("status", status),
 			slog.String("public_msg", msg),
 			slog.Any("cause", internalErr))
-		ctx.JSON(status, gin.H{"error": msg})
-		return
+		return c.JSON(status, map[string]string{"error": msg})
 	}
 
-	h.log.InfoContext(ctx, "successful authentification",
+	h.log.InfoContext(c.Request().Context(), "successful authentification",
 		slog.String("user_id", resp.User.ID.String()))
 
-	ctx.JSON(http.StatusCreated, resp)
+	return c.JSON(http.StatusCreated, resp)
 }
 
-func (h *AuthHandler) RefreshToken(ctx *gin.Context) {
+func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	var req dto.RefreshTokenRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
-		return
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 	}
 
-	resp, err := h.RefreshUC.Execute(ctx, req)
+	resp, err := h.RefreshUC.Execute(c.Request().Context(), req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
-		h.log.ErrorContext(ctx, "failed to refresh tokens",
+		h.log.ErrorContext(c.Request().Context(), "failed to refresh tokens",
 			slog.Int("status", status),
 			slog.String("public_msg", msg),
 			slog.Any("cause", internalErr))
-		ctx.JSON(status, gin.H{"error": msg})
-		return
+		return c.JSON(status, map[string]string{"error": msg})
 	}
 
-	h.log.InfoContext(ctx, "successful tokens refresh",
+	h.log.InfoContext(c.Request().Context(), "successful tokens refresh",
 		slog.String("user_id", resp.User.ID.String()))
 
-	ctx.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusOK, resp)
 }
 
-func (h *AuthHandler) Logout(ctx *gin.Context) {
+func (h *AuthHandler) Logout(c echo.Context) error {
 	var req dto.LogoutRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
-		return
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid json"})
 	}
 
-	resp, err := h.LogoutUC.Execute(ctx, req)
+	resp, err := h.LogoutUC.Execute(c.Request().Context(), req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
-		h.log.ErrorContext(ctx, "failed to logout",
+		h.log.ErrorContext(c.Request().Context(), "failed to logout",
 			slog.Int("status", status),
 			slog.String("public_msg", msg),
 			slog.Any("cause", internalErr))
-		ctx.JSON(status, gin.H{"error": msg})
-		return
+		return c.JSON(status, map[string]string{"error": msg})
 	}
 
-	h.log.InfoContext(ctx, "successful logout",
+	h.log.InfoContext(c.Request().Context(), "successful logout",
 		slog.String("user_id", resp.UserID.String()))
 
-	ctx.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusOK, resp)
 }

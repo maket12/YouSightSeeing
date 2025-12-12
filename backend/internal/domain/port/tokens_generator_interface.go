@@ -12,4 +12,5 @@ type TokensGenerator interface {
 	GenerateRefreshToken(ctx context.Context) (string, error)
 	ParseAccessToken(ctx context.Context, token string) (*entity.AccessClaims, error)
 	ParseRefreshToken(ctx context.Context, token string) (*entity.RefreshClaims, error)
+	ValidateAccessToken(ctx context.Context, token string) (userID uuid.UUID, err error)
 }
