@@ -81,6 +81,19 @@ func (gen *TokensGenerator) ParseRefreshToken(ctx context.Context, token string)
 	return toDomainRefresh(jwtClaims), nil
 }
 
+func (gen *TokensGenerator) ValidateAccessToken(ctx context.Context, token string) (userID uuid.UUID, err error) {
+	claims, err := gen.ParseAccessToken(ctx, token)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if claims.Type != "access" {
+		return uuid.Nil, fmt.Errorf("invalid token type")
+	}
+
+	return claims.UserID, nil
+}
+
 type jwtAccessClaims struct {
 	jwt.RegisteredClaims
 	Type   string    `json:"type"`
