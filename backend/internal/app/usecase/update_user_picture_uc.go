@@ -41,7 +41,7 @@ func (uc *UpdateUserPictureUC) Execute(ctx context.Context, in dto.UpdateUserPic
 			return dto.UpdateUserPictureResponse{
 				ID:      in.ID,
 				Updated: false,
-			}, err
+			}, uc_errors.UserNotFoundError
 		}
 		return dto.UpdateUserPictureResponse{
 			ID:      in.ID,

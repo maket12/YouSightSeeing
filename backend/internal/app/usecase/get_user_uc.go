@@ -38,7 +38,7 @@ func (uc *GetUserUC) Execute(ctx context.Context, in dto.GetUserRequest) (dto.Ge
 	user, err := uc.Users.GetByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return dto.GetUserResponse{}, err
+			return dto.GetUserResponse{}, uc_errors.UserNotFoundError
 		}
 		return dto.GetUserResponse{}, uc_errors.Wrap(uc_errors.GetUserError, err)
 	}

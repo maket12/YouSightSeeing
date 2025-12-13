@@ -53,6 +53,9 @@ func (uc *RefreshTokenUC) Execute(ctx context.Context, in dto.RefreshTokenReques
 	// User(output)
 	user, err := uc.Users.GetByID(ctx, oldRefreshToken.UserID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return dto.RefreshTokenResponse{}, uc_errors.UserNotFoundError
+		}
 		return dto.RefreshTokenResponse{}, uc_errors.Wrap(uc_errors.GetUserError, err)
 	}
 
