@@ -12,6 +12,8 @@ func HttpError(err error) (int, string, error) {
 		switch {
 		case errors.Is(w.Public, uc_errors.CreateUserError),
 			errors.Is(w.Public, uc_errors.GetUserError),
+			errors.Is(w.Public, uc_errors.UpdateUserError),
+			errors.Is(w.Public, uc_errors.UpdateUserPictureError),
 			errors.Is(w.Public, uc_errors.CreateRefreshTokenError),
 			errors.Is(w.Public, uc_errors.GetRefreshTokenByUserIDError),
 			errors.Is(w.Public, uc_errors.GetRefreshTokenByHashError),
@@ -37,7 +39,8 @@ func HttpError(err error) (int, string, error) {
 		errors.Is(err, uc_errors.EmailNotVerifiedError),
 		errors.Is(err, uc_errors.EmptyGoogleTokenError),
 		errors.Is(err, uc_errors.GoogleTokenValidationError),
-		errors.Is(err, uc_errors.EmptyRefreshTokenError):
+		errors.Is(err, uc_errors.EmptyRefreshTokenError),
+		errors.Is(err, uc_errors.InvalidUserID):
 		return http.StatusBadRequest, err.Error(), nil
 	}
 

@@ -16,7 +16,7 @@ import (
 	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
 
-	mocks "YouSightSeeing/backend/internal/domain/port/mocks"
+	"YouSightSeeing/backend/internal/domain/port/mocks"
 )
 
 func TestGoogleAuthUC_Execute(t *testing.T) {
@@ -77,6 +77,18 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 			},
 			wantErr: uc_errors.EmailNotVerifiedError,
 		},
+
+		{
+			name:  "Error: Database fail on get user",
+			input: dto.GoogleAuthRequest{GoogleToken: validToken},
+			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, gv *mocks.GoogleVerifier, tg *mocks.TokensGenerator) {
+				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
+
+				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, errors.New("db error"))
+			},
+			wantErr: uc_errors.GetUserError,
+		},
+
 		{
 			name:  "Success: New User (Registration)",
 			input: dto.GoogleAuthRequest{GoogleToken: validToken},
@@ -94,7 +106,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				})).Return(nil)
 
 				// 4. Генерация refresh-токена
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("refresh_token_123", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("refresh_token_123", nil)
 
 				// 5. Сохранение refresh-токена
 				tr.On("Create", mock.Anything, mock.Anything).Return(nil)
@@ -118,7 +130,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
 				// 4. Генерация нового refresh-токена
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("refresh_token_new", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("refresh_token_new", nil)
 
 				// 5. Сохранение нового токена (без отзыва старого, так как его нет)
 				tr.On("Create", mock.Anything, mock.MatchedBy(func(t *entity.RefreshToken) bool {
@@ -153,7 +165,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("Revoke", mock.Anything, "old_hash_value", "new log in").Return(nil)
 
 				// 5. Генерация нового токена
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("refresh_token_rotated", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("refresh_token_rotated", nil)
 
 				// 6. Сохранение нового токена
 				tr.On("Create", mock.Anything, mock.MatchedBy(func(t *entity.RefreshToken) bool {
@@ -208,7 +220,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				u.On("Create", mock.Anything, mock.Anything).Return(nil)
 
 				// Ошибка генерации
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("", errors.New("gen fail"))
+				tg.On("GenerateRefreshToken", mock.Anything).Return("", errors.New("gen fail"))
 			},
 			wantErr: uc_errors.GenerateRefreshTokenError,
 		},
@@ -219,7 +231,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
 				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
 				u.On("Create", mock.Anything, mock.Anything).Return(nil)
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("ref_token", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("ref_token", nil)
 
 				// Ошибка сохранения в БД
 				tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("db fail"))
@@ -233,7 +245,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				gv.On("VerifyToken", mock.Anything, validToken).Return(validClaims, nil)
 				u.On("GetByGoogleSub", mock.Anything, validSub).Return(nil, sql.ErrNoRows)
 				u.On("Create", mock.Anything, mock.Anything).Return(nil)
-				tg.On("GenerateRefreshToken", mock.Anything, mock.Anything).Return("ref_token", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("ref_token", nil)
 				tr.On("Create", mock.Anything, mock.Anything).Return(nil)
 
 				// Ошибка генерации Access
@@ -250,7 +262,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
 				// Ошибка тут
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("", errors.New("gen fail"))
+				tg.On("GenerateRefreshToken", mock.Anything).Return("", errors.New("gen fail"))
 			},
 			wantErr: uc_errors.GenerateRefreshTokenError,
 		},
@@ -292,7 +304,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
 				// 2. Refresh создался успешно
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref_token", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("ref_token", nil)
 				tr.On("Create", mock.Anything, mock.Anything).Return(nil)
 
 				// 3. А вот Access упал <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
@@ -311,7 +323,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("GetByUserID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
 
 				// 2. Сгенерировали успешно
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("ref_token", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("ref_token", nil)
 
 				// 3. Но сохранить в БД не смогли <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
 				tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("db create fail"))
@@ -333,7 +345,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("Revoke", mock.Anything, "hash", "new log in").Return(nil)
 
 				// 3. А новый сгенерировать не вышло <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("", errors.New("gen fail"))
+				tg.On("GenerateRefreshToken", mock.Anything).Return("", errors.New("gen fail"))
 			},
 			wantErr: uc_errors.GenerateRefreshTokenError,
 		},
@@ -352,7 +364,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 				tr.On("Revoke", mock.Anything, "hash", "new log in").Return(nil)
 
 				// 3. Сгенерировали успешно
-				tg.On("GenerateRefreshToken", mock.Anything, userID).Return("new_ref", nil)
+				tg.On("GenerateRefreshToken", mock.Anything).Return("new_ref", nil)
 
 				// 4. Но сохранить новый не вышло <--- ВОТ ТУТ МЫ ПОКРЫВАЕМ СТРОКУ
 				tr.On("Create", mock.Anything, mock.Anything).Return(errors.New("db fail"))
@@ -376,12 +388,7 @@ func TestGoogleAuthUC_Execute(t *testing.T) {
 			}
 
 			// Инициализация юзкейса с внедрением зависимостей
-			uc := &usecase.GoogleAuthUC{
-				Users:           uRepo,
-				RefreshTokens:   tRepo,
-				GoogleVerf:      gVerf,
-				TokensGenerator: tGen,
-			}
+			uc := usecase.NewGoogleAuthUC(uRepo, tRepo, gVerf, tGen, time.Hour, time.Hour*24)
 
 			// Выполнение тестируемого метода
 			resp, err := uc.Execute(context.Background(), tt.input)

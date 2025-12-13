@@ -46,11 +46,12 @@ func (r *Router) InitRoutes() *echo.Echo {
 			// TODO: GetMe
 			users.GET("/me", nil)
 
-			// TODO: UpdateProfile
+			// TODO: UpdateMe
 			users.PATCH("/me", nil)
 
 			// TODO: UpdatePicture
 			users.PUT("/me/picture", nil)
+
 		}
 	}
 
