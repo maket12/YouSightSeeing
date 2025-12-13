@@ -16,7 +16,7 @@ import (
 	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
 
-	mocks "YouSightSeeing/backend/internal/domain/port/mocks"
+	"YouSightSeeing/backend/internal/domain/port/mocks"
 )
 
 func TestRefreshTokenUC_Execute(t *testing.T) {
@@ -199,7 +199,6 @@ func TestRefreshTokenUC_Execute(t *testing.T) {
 			}
 
 			// Инициализация usecase
-			// Передаем TTL (например, 1 час)
 			uc := usecase.NewRefreshTokenUC(
 				uRepo,
 				tRepo,

@@ -11,16 +11,16 @@ import (
 
 type AuthHandler struct {
 	log       *slog.Logger
-	AuthUC    *usecase.GoogleAuthUC
-	RefreshUC *usecase.RefreshTokenUC
-	LogoutUC  *usecase.LogoutUC
+	AuthUC    usecase.GoogleAuthUseCase
+	RefreshUC usecase.RefreshTokenUseCase
+	LogoutUC  usecase.LogoutUseCase
 }
 
 func NewAuthHandler(
 	log *slog.Logger,
-	authUC *usecase.GoogleAuthUC,
-	refreshUC *usecase.RefreshTokenUC,
-	logoutUC *usecase.LogoutUC,
+	authUC usecase.GoogleAuthUseCase,
+	refreshUC usecase.RefreshTokenUseCase,
+	logoutUC usecase.LogoutUseCase,
 
 ) *AuthHandler {
 	return &AuthHandler{

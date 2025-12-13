@@ -13,12 +13,14 @@ import (
 type Router struct {
 	JWTGen port.TokensGenerator
 	Auth   *AuthHandler
+	Users  *UserHandler
 }
 
-func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler) *Router {
+func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler) *Router {
 	return &Router{
 		JWTGen: jwtGen,
 		Auth:   auth,
+		Users:  users,
 	}
 }
 
@@ -43,14 +45,9 @@ func (r *Router) InitRoutes() *echo.Echo {
 	{
 		users := privateApi.Group("/users")
 		{
-			// TODO: GetMe
-			users.GET("/me", nil)
-
-			// TODO: UpdateProfile
-			users.PATCH("/me", nil)
-
-			// TODO: UpdatePicture
-			users.PUT("/me/picture", nil)
+			users.GET("/me", r.Users.GetMe)
+			users.PATCH("/me", r.Users.UpdateMe)
+			users.PUT("/me/picture", r.Users.UpdateMePicture)
 		}
 	}
 
