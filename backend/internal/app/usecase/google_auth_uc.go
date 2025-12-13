@@ -187,10 +187,10 @@ func (uc *GoogleAuthUC) validateGoogleToken(ctx context.Context, token string) (
 	}
 
 	if googleClaims.Sub == "" {
-		return nil, uc_errors.Wrap(uc_errors.EmptyGoogleSubError, err)
+		return nil, uc_errors.EmptyGoogleSubError
 	}
 	if googleClaims.Email == "" {
-		return nil, uc_errors.Wrap(uc_errors.EmptyEmailError, err)
+		return nil, uc_errors.EmptyEmailError
 	}
 
 	if !googleClaims.EmailVerified {

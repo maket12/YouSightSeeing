@@ -9,9 +9,14 @@ var (
 	EmptyGoogleSubError        = errors.New("empty google sub")
 	EmailNotVerifiedError      = errors.New("email not verified")
 	EmptyRefreshTokenError     = errors.New("empty refresh token")
+	InvalidUserID              = errors.New("invalid user id")
 
-	CreateUserError = errors.New("failed to create user")
-	GetUserError    = errors.New("failed to get user")
+	CreateUserError        = errors.New("failed to create user")
+	GetUserError           = errors.New("failed to get user")
+	UpdateUserError        = errors.New("failed to update user")
+	UpdateUserPictureError = errors.New("failed to update user's picture")
+
+	UserNotFoundError = errors.New("user not found")
 
 	CreateRefreshTokenError      = errors.New("failed to create refresh token")
 	GetRefreshTokenByUserIDError = errors.New("failed to get refresh token by user id")
