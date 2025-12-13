@@ -1,0 +1,54 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#FFFFFF"
+    android:padding="20dp">
+
+    <!-- Логотип -->
+    <ImageView
+        android:id="@+id/registerLogo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/icon"
+        android:scaleType="centerInside" />
+
+    <!-- FrameLayout для фона кнопки и самой кнопки -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content">
+
+        <!-- Фон кнопки -->
+        <ImageView
+            android:id="@+id/btnGoogleBg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/google_login_bg" />
+
+        <!-- Текст под картинкой -->
+        <TextView
+            android:id="@+id/titleText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-25dp"
+            android:layout_marginBottom="20dp"
+            android:layout_gravity="center"
+            android:text="Путешествуй с нами"
+            android:textColor="#FFFF"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <!-- Кнопка поверх фона -->
+        <Button
+            android:id="@+id/btnGoogleRegister"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="15dp"
+            android:background="@drawable/google_login"
+            android:textColor="#FFFFFF" />
+
+    </FrameLayout>
+
+</LinearLayout>
