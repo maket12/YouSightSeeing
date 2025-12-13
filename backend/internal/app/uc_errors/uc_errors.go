@@ -16,6 +16,8 @@ var (
 	UpdateUserError        = errors.New("failed to update user")
 	UpdateUserPictureError = errors.New("failed to update user's picture")
 
+	UserNotFoundError = errors.New("user not found")
+
 	CreateRefreshTokenError      = errors.New("failed to create refresh token")
 	GetRefreshTokenByUserIDError = errors.New("failed to get refresh token by user id")
 	GetRefreshTokenByHashError   = errors.New("failed to get refresh token by hash")

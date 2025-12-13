@@ -11,16 +11,16 @@ import (
 
 type UserHandler struct {
 	log                 *slog.Logger
-	getUserUC           *usecase.GetUserUC
-	updateUserUC        *usecase.UpdateUserUC
-	updateUserPictureUC *usecase.UpdateUserPictureUC
+	getUserUC           usecase.GetUserUseCase
+	updateUserUC        usecase.UpdateUserUseCase
+	updateUserPictureUC usecase.UpdateUserPictureUseCase
 }
 
 func NewUserHandler(
 	log *slog.Logger,
-	getUserUc *usecase.GetUserUC,
-	updateUserUc *usecase.UpdateUserUC,
-	updateUserPictureUc *usecase.UpdateUserPictureUC) *UserHandler {
+	getUserUc usecase.GetUserUseCase,
+	updateUserUc usecase.UpdateUserUseCase,
+	updateUserPictureUc usecase.UpdateUserPictureUseCase) *UserHandler {
 	return &UserHandler{
 		log:                 log,
 		getUserUC:           getUserUc,
