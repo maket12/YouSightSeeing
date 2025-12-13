@@ -52,6 +52,7 @@ func (r *Router) InitRoutes() *echo.Echo {
 			// TODO: UpdatePicture
 			users.PUT("/me/picture", nil)
 		}
+
 	}
 
 	return router
