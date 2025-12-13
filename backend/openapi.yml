@@ -33,19 +33,67 @@ components:
       type: object
       properties:
         id:
-          type: integer
-          example: 1
-        google_id:
           type: string
-          example: "1029384756"
-        name:
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        google_sub:
           type: string
-          example: "Kirill"
+          example: "10769150350006150715113082367"
         email:
           type: string
-          example: "kirill@example.com"
-        avatar_url:
+          example: "kirpich@example.com"
+        full_name:
           type: string
+          example: "Kirill Kirpichov"
+        picture:
+          type: string
+          format: uri
+          example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
+        first_name:
+          type: string
+          example: "Kirill"
+        last_name:
+          type: string
+          example: "Kirpichov"
+        email_verified:
+          type: boolean
+          example: true
+        google_domain:
+          type: string
+          example: "example.com"
+        locale:
+          type: string
+          example: "ru"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-12-08T18:44:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-12-09T10:00:00Z"
+
+    RefreshTokenRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          description: "Действующий refresh токен пользователя"
+          example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
+
+    RefreshTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: "JWT токен доступа"
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: "Новый refresh токен"
+          example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
+        user:
+          $ref: '#/components/schemas/User'
 
     Place:
       type: object
@@ -99,33 +147,111 @@ paths:
     post:
       tags: [Auth]
       summary: Вход через Google
-      description: Принимает Google ID Token, возвращает наш JWT и данные юзера
+      description: "Создает нового пользователя или авторизует существующего через Google ID Token"
+      operationId: authGoogle
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [id_token]
+              required: [google_token]
               properties:
-                id_token:
+                google_token:
                   type: string
-                  description: Токен полученный от Google SDK на андроиде
+                  description: "Токен, полученный от Google Sign-In на клиенте"
+                  example: "eyJhbGciOiJSUzI1NiIsImtpZCI6Im..."
+      responses:
+        '201':
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          description: Неверный формат запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Токен Google невалиден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Обновление токенов
+      description: "Получает новый Access Token по валидному Refresh Token"
+      operationId: authRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
       responses:
         '200':
-          description: Успешный вход
+          description: Токены успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Refresh токен невалиден, истек или отозван
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Выход из системы
+      description: "Отзывает указанный Refresh Token, делая его невалидным."
+      operationId: authLogout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+                  description: "Refresh токен, который нужно отозвать"
+                  example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
+      responses:
+        '200':
+          description: Успешный выход
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  token:
+                  user_id:
                     type: string
-                    description: JWT токен для будущих запросов
-                  user:
-                    $ref: '#/components/schemas/User'
-        '401':
-          description: Неверный токен Google
+                    format: uuid
+                  logout:
+                    type: boolean
+                    example: true
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 
   /user/profile:
     get:
