@@ -16,7 +16,6 @@ type TokenRepository interface {
 
 	Revoke(ctx context.Context, tokenHash string, reason string) error
 	RevokeByID(ctx context.Context, id uuid.UUID, reason string) error
-	RevokeAllForUser(ctx context.Context, userID uuid.UUID, reason string) error
 
 	DeleteExpired(ctx context.Context) error
 	DeleteRevoked(ctx context.Context, olderThan *time.Time) error
