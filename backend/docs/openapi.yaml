@@ -1,0 +1,258 @@
+openapi: 3.0.3
+info:
+  title: YouSightseeing API
+  description: API для туристического приложения (поиск мест, построение маршрутов, профиль)
+  version: "1.0.0"
+
+tags:
+  - name: Auth
+    description: Авторизация и профиль
+  - name: Places
+    description: Поиск достопримечательностей (прокси к Geopify)
+  - name: Routes
+    description: Маршруты пользователя
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- ОШИБКИ ---
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid token"
+    
+    # --- МОДЕЛИ ---
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        google_id:
+          type: string
+          example: "1029384756"
+        name:
+          type: string
+          example: "Kirill"
+        email:
+          type: string
+          example: "kirill@example.com"
+        avatar_url:
+          type: string
+
+    Place:
+      type: object
+      required: [name, lat, lon, category]
+      properties:
+        name:
+          type: string
+          example: "Tretyakov Gallery"
+        lat:
+          type: number
+          format: double
+          example: 55.741
+        lon:
+          type: number
+          format: double
+          example: 37.620
+        category:
+          type: string
+          enum: [museum, park, cafe, monument, other]
+        address:
+          type: string
+          nullable: true
+        
+    Route:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+          example: "Прогулка по центру"
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/Place'
+        duration_seconds:
+          type: integer
+          example: 3600
+        distance_meters:
+          type: integer
+          example: 5000
+        created_at:
+          type: string
+          format: date-time
+
+paths:
+  # ==========================
+  # АВТОРИЗАЦИЯ
+  # ==========================
+  /auth/google:
+    post:
+      tags: [Auth]
+      summary: Вход через Google
+      description: Принимает Google ID Token, возвращает наш JWT и данные юзера
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id_token]
+              properties:
+                id_token:
+                  type: string
+                  description: Токен полученный от Google SDK на андроиде
+      responses:
+        '200':
+          description: Успешный вход
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT токен для будущих запросов
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Неверный токен Google
+
+  /user/profile:
+    get:
+      tags: [Auth]
+      summary: Получить профиль текущего пользователя
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # ==========================
+  # ПОИСК МЕСТ (PROXY)
+  # ==========================
+  /places/search:
+    get:
+      tags: [Places]
+      summary: Найти места рядом (через Geopify)
+      description: Бэкэнд сам сходит в Geopify API и вернет чистый список
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+            format: double
+        - name: radius
+          in: query
+          description: Радиус поиска в метрах (по умолчанию 1000)
+          schema:
+            type: integer
+            default: 1000
+        - name: categories
+          in: query
+          description: Категории через запятую (museum,park,cafe)
+          schema:
+            type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  places:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Place'
+
+  # ==========================
+  # МАРШРУТЫ
+  # ==========================
+  /routes:
+    get:
+      tags: [Routes]
+      summary: Получить список сохраненных маршрутов
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  routes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Route'
+
+    post:
+      tags: [Routes]
+      summary: Сохранить маршрут
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, points]
+              properties:
+                name:
+                  type: string
+                points:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Place'
+                duration:
+                  type: integer
+                distance:
+                  type: integer
+      responses:
+        '201':
+          description: Маршрут сохранен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  route_id:
+                    type: integer
+
+  /routes/{id}:
+    delete:
+      tags: [Routes]
+      summary: Удалить маршрут
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешно удалено
+        '404':
+          description: Маршрут не найден
