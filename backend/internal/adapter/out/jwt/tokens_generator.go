@@ -18,11 +18,11 @@ type TokensGenerator struct {
 }
 
 func NewTokensGenerator(
-	accessSecret, refreshSecret []byte,
+	accessSecret, refreshSecret string,
 	accessTTL, refreshTTL time.Duration) *TokensGenerator {
 	return &TokensGenerator{
-		accessSecret:    accessSecret,
-		refreshSecret:   refreshSecret,
+		accessSecret:    []byte(accessSecret),
+		refreshSecret:   []byte(refreshSecret),
 		accessTokenTTL:  accessTTL,
 		refreshTokenTTL: refreshTTL,
 	}
