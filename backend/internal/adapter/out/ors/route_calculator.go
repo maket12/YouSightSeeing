@@ -10,21 +10,21 @@ import (
 	"time"
 )
 
-type ORSAdapter struct {
+type RouteCalculator struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func NewORSAdapter(apikey string) *ORSAdapter {
-	return &ORSAdapter{
+func NewORSAdapter(apikey string) *RouteCalculator {
+	return &RouteCalculator{
 		APIKey:     apikey,
 		BaseURL:    "https://api.openrouteservice.org/v2/directions",
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
-func (a *ORSAdapter) CalculateRoute(ctx context.Context, req entity.ORSRequest) (map[string]interface{}, error) {
+func (a *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequest) (map[string]interface{}, error) {
 	reqBodyResponse, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal ORS request: %w", err)
