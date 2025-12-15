@@ -1,5 +1,6 @@
 package com.example.yandexmapcitysearch;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -75,6 +76,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         initializeUI();
         initializeSearch();
     }
+
 
     /**
      * Инициализация MapKit

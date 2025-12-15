@@ -58,5 +58,7 @@ dependencies {
     // Splash Screen API (для современного splash screen)
     implementation 'androidx.core:core-splashscreen:1.0.1'
     implementation libs.firebase.firestore
+
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }
 
