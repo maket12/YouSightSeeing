@@ -10,8 +10,11 @@ func HttpError(err error) (int, string, error) {
 	var w *uc_errors.WrappedError
 	if errors.As(err, &w) {
 		switch {
-		case errors.Is(w.Public, uc_errors.CreateUserError),
+		case errors.Is(err, uc_errors.GoogleTokenValidationError),
+			errors.Is(w.Public, uc_errors.CreateUserError),
 			errors.Is(w.Public, uc_errors.GetUserError),
+			errors.Is(w.Public, uc_errors.UpdateUserError),
+			errors.Is(w.Public, uc_errors.UpdateUserPictureError),
 			errors.Is(w.Public, uc_errors.CreateRefreshTokenError),
 			errors.Is(w.Public, uc_errors.GetRefreshTokenByUserIDError),
 			errors.Is(w.Public, uc_errors.GetRefreshTokenByHashError),
@@ -25,8 +28,13 @@ func HttpError(err error) (int, string, error) {
 	}
 
 	switch {
-	case errors.Is(err, uc_errors.RefreshTokenNotFoundError),
-		errors.Is(err, uc_errors.ExpiredRefreshTokenError),
+	case errors.Is(err, uc_errors.UserNotFoundError),
+		errors.Is(err, uc_errors.RefreshTokenNotFoundError):
+		return http.StatusNotFound, err.Error(), nil
+	}
+
+	switch {
+	case errors.Is(err, uc_errors.ExpiredRefreshTokenError),
 		errors.Is(err, uc_errors.RevokedRefreshTokenError):
 		return http.StatusUnauthorized, err.Error(), nil
 	}
@@ -36,8 +44,8 @@ func HttpError(err error) (int, string, error) {
 		errors.Is(err, uc_errors.EmptyGoogleSubError),
 		errors.Is(err, uc_errors.EmailNotVerifiedError),
 		errors.Is(err, uc_errors.EmptyGoogleTokenError),
-		errors.Is(err, uc_errors.GoogleTokenValidationError),
-		errors.Is(err, uc_errors.EmptyRefreshTokenError):
+		errors.Is(err, uc_errors.EmptyRefreshTokenError),
+		errors.Is(err, uc_errors.InvalidUserID):
 		return http.StatusBadRequest, err.Error(), nil
 	}
 
