@@ -5,7 +5,7 @@ type Point struct {
 	Lon float64 `json:"lon"`
 }
 
-type RouteRequest struct {
+type CalculateRouteRequest struct {
 	Coordinates   [][]float64 `json:"coordinates"`
 	Profile       string      `json:"profile,omitempty"`
 	Preference    string      `json:"preference,omitempty"`

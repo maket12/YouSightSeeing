@@ -18,6 +18,8 @@ type Config struct {
 	AccessDuration  time.Duration `env:"ACCESS_DURATION" envDefault:"15m"`
 	RefreshSecret   string        `env:"REFRESH_SECRET,required"`
 	RefreshDuration time.Duration `env:"REFRESH_DURATION" envDefault:"720h"`
+
+	ORSApiKey string `env:"ORS_API_KEY,required"`
 }
 
 func Load() (*Config, error) {

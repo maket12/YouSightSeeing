@@ -5,6 +5,6 @@ import (
 	"context"
 )
 
-type RouteService interface {
+type RouteCalculator interface {
 	CalculateRoute(ctx context.Context, req entity.ORSRequest) (entity.Route, error)
 }
