@@ -29,4 +29,8 @@ var (
 
 	GenerateAccessTokenError  = errors.New("failed to generate new access token")
 	GenerateRefreshTokenError = errors.New("failed to generate new refresh token")
+
+	ErrRouteServiceUnavailable = errors.New("route service is unavailable")
+	ErrRouteCalculationFailed  = errors.New("failed to calculate route")
+	ErrInvalidRoutePoints      = errors.New("need at least 2 points to calculate a route")
 )

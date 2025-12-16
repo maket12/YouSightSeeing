@@ -20,7 +20,8 @@ func HttpError(err error) (int, string, error) {
 			errors.Is(w.Public, uc_errors.GetRefreshTokenByHashError),
 			errors.Is(w.Public, uc_errors.RevokeRefreshTokenError),
 			errors.Is(w.Public, uc_errors.GenerateAccessTokenError),
-			errors.Is(w.Public, uc_errors.GenerateRefreshTokenError):
+			errors.Is(w.Public, uc_errors.GenerateRefreshTokenError),
+			errors.Is(err, uc_errors.ErrRouteCalculationFailed):
 			return http.StatusInternalServerError, w.Public.Error(), w.Reason
 		default:
 			return http.StatusInternalServerError, "internal error", w.Reason
@@ -46,6 +47,7 @@ func HttpError(err error) (int, string, error) {
 		errors.Is(err, uc_errors.EmptyGoogleTokenError),
 		errors.Is(err, uc_errors.GoogleTokenValidationError),
 		errors.Is(err, uc_errors.EmptyRefreshTokenError),
+		errors.Is(err, uc_errors.ErrInvalidRoutePoints),
 		errors.Is(err, uc_errors.EmptyRefreshTokenError),
 		errors.Is(err, uc_errors.InvalidUserID):
 		return http.StatusBadRequest, err.Error(), nil
