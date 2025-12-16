@@ -16,8 +16,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	echoswagger "github.com/swaggo/echo-swagger"
 )
 
 func parseLogLevel(level string) slog.Level {
@@ -113,18 +111,15 @@ func main() {
 		userHandler,
 	).InitRoutes()
 
-	router.File("/openapi.yaml", "./docs/openapi.yaml")
-	router.GET("/swagger/*any", echoswagger.WrapHandler)
-
 	// ======================
-	// 7. Router config
+	// 8. Router config
 	// ======================
 	router.Server.ReadTimeout = 5 * time.Second
 	router.Server.WriteTimeout = 10 * time.Second
 	router.Server.IdleTimeout = 60 * time.Second
 
 	// ======================
-	// 8. Run HTTP server
+	// 9. Run HTTP server
 	// ======================
 
 	srv := &http.Server{

@@ -12,6 +12,7 @@ require (
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/stretchr/testify v1.11.1
+	github.com/swaggest/swgui v1.8.5
 	github.com/swaggo/echo-swagger v1.4.1
 	golang.org/x/oauth2 v0.33.0
 	google.golang.org/api v0.257.0
@@ -50,6 +51,7 @@ require (
 	github.com/swaggo/swag v1.8.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
+	github.com/vearutop/statigz v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
