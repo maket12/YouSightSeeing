@@ -6,6 +6,7 @@ import (
 	adapterhttp "YouSightSeeing/backend/internal/adapter/in/http"
 	adapterdb "YouSightSeeing/backend/internal/adapter/out/db"
 	adaptertg "YouSightSeeing/backend/internal/adapter/out/jwt"
+	adapterors "YouSightSeeing/backend/internal/adapter/out/ors"
 	"YouSightSeeing/backend/internal/app/usecase"
 	"context"
 	"errors"
@@ -71,6 +72,7 @@ func main() {
 		cfg.AccessDuration,
 		cfg.RefreshDuration,
 	)
+	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
 
 	// ======================
 	// 5. Usecases
@@ -89,6 +91,7 @@ func main() {
 	getUserUC := usecase.NewGetUserUC(usersRepo)
 	updateUserUC := usecase.NewUpdateUserUC(usersRepo)
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
+	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -101,6 +104,7 @@ func main() {
 		logger, getUserUC,
 		updateUserUC, updateUserPicUC,
 	)
+	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC)
 
 	// ======================
 	// 7. Router
@@ -109,6 +113,7 @@ func main() {
 		tokensGeneratorRepo,
 		authHandler,
 		userHandler,
+		routeHandler,
 	).InitRoutes()
 
 	// ======================
