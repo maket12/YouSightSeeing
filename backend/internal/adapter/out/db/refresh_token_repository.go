@@ -194,19 +194,38 @@ func (r *RefreshTokenRepository) GetList(ctx context.Context, userID uuid.UUID) 
 }
 
 func (r *RefreshTokenRepository) GetListActive(ctx context.Context, userID uuid.UUID, isActive bool) ([]entity.RefreshToken, error) {
-	query := `SELECT id, user_id, token_hash, device_info, 
-       				ip_address, user_agent, is_revoked, 
-       				revoked_at, revoked_reason, issued_at, 
-       				expires_at 
-			  FROM refresh_tokens
-			  WHERE user_id = $1 AND is_revoked = $2`
+	if isActive {
+		// Активные токены: не отозваны И не истекли
+		query := `SELECT id, user_id, token_hash, device_info, 
+                        ip_address, user_agent, is_revoked, 
+                        revoked_at, revoked_reason, issued_at, 
+                        expires_at 
+                  FROM refresh_tokens
+                  WHERE user_id = $1 
+                    AND is_revoked = false
+                    AND expires_at > NOW()`
 
-	var tokens []entity.RefreshToken
-	if err := r.db.SelectContext(ctx, &tokens, query, userID, !isActive); err != nil {
-		return nil, fmt.Errorf("failed to get list of active refresh tokens using db: %w", err)
+		var tokens []entity.RefreshToken
+		if err := r.db.SelectContext(ctx, &tokens, query, userID); err != nil {
+			return nil, fmt.Errorf("failed to get list of active refresh tokens using db: %w", err)
+		}
+		return tokens, nil
+	} else {
+		// Неактивные токены: отозваны или истекли
+		query := `SELECT id, user_id, token_hash, device_info, 
+                        ip_address, user_agent, is_revoked, 
+                        revoked_at, revoked_reason, issued_at, 
+                        expires_at 
+                  FROM refresh_tokens
+                  WHERE user_id = $1 
+                    AND (is_revoked = true OR expires_at <= NOW())`
+
+		var tokens []entity.RefreshToken
+		if err := r.db.SelectContext(ctx, &tokens, query, userID); err != nil {
+			return nil, fmt.Errorf("failed to get list of inactive refresh tokens using db: %w", err)
+		}
+		return tokens, nil
 	}
-
-	return tokens, nil
 }
 
 func (r *RefreshTokenRepository) IsValid(ctx context.Context, tokenHash string) (bool, error) {
@@ -219,7 +238,7 @@ func (r *RefreshTokenRepository) IsValid(ctx context.Context, tokenHash string) 
 
 	var isValid bool
 	if err := r.db.GetContext(ctx, &isValid, query, tokenHash); err != nil {
-		return false, fmt.Errorf("failed to check validation of refresh token using db: %w", err)
+		return false, fmt.Errorf("failed to check valid of refresh token using db: %w", err)
 	}
 
 	return isValid, nil
