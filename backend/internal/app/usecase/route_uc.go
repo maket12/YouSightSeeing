@@ -19,20 +19,6 @@ func NewCalculateRouteUC(service port.RouteCalculator) *CalculateRouteUC {
 	}
 }
 
-//type orsResponseRaw struct {
-//	Features []struct {
-//		Geometry struct {
-//			Coordinates [][]float64 `json:"coordinates"`
-//		} `json:"geometry"`
-//		Properties struct {
-//			Summary struct {
-//				Distance float64 `json:"distance"`
-//				Duration float64 `json:"duration"`
-//			} `json:"summary"`
-//		} `json:"properties"`
-//	} `json:"features"`
-//}
-
 func (uc *CalculateRouteUC) Execute(ctx context.Context, req dto.CalculateRouteRequest) (dto.CalculateRouteResponse, error) {
 	//validation
 	if len(req.Coordinates) < 2 {
