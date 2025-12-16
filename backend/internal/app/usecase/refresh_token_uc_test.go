@@ -20,7 +20,6 @@ import (
 )
 
 func TestRefreshTokenUC_Execute(t *testing.T) {
-	// Подготовка данных
 	userID := uuid.New()
 	validTokenString := "valid_refresh_token"
 
@@ -115,6 +114,15 @@ func TestRefreshTokenUC_Execute(t *testing.T) {
 		},
 		{
 			name:  "Error: User Not Found",
+			input: dto.RefreshTokenRequest{RefreshToken: validTokenString},
+			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, tg *mocks.TokensGenerator) {
+				tr.On("GetByHash", mock.Anything, mock.Anything).Return(validOldToken, nil)
+				u.On("GetByID", mock.Anything, userID).Return(nil, sql.ErrNoRows)
+			},
+			wantErr: uc_errors.UserNotFoundError,
+		},
+		{
+			name:  "Error: Failed Get User",
 			input: dto.RefreshTokenRequest{RefreshToken: validTokenString},
 			mockSetup: func(u *mocks.UserRepository, tr *mocks.TokenRepository, tg *mocks.TokensGenerator) {
 				tr.On("GetByHash", mock.Anything, mock.Anything).Return(validOldToken, nil)
