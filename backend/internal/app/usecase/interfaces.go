@@ -28,3 +28,7 @@ type UpdateUserUseCase interface {
 type UpdateUserPictureUseCase interface {
 	Execute(ctx context.Context, in dto.UpdateUserPictureRequest) (dto.UpdateUserPictureResponse, error)
 }
+
+type CalculateRouteUseCase interface {
+	Execute(ctx context.Context, req dto.CalculateRouteRequest) (dto.CalculateRouteResponse, error)
+}
