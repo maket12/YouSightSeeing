@@ -132,6 +132,36 @@ func (_m *TokensGenerator) ParseRefreshToken(ctx context.Context, token string) 
 	return r0, r1
 }
 
+// ValidateAccessToken provides a mock function with given fields: ctx, token
+func (_m *TokensGenerator) ValidateAccessToken(ctx context.Context, token string) (uuid.UUID, error) {
+	ret := _m.Called(ctx, token)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ValidateAccessToken")
+	}
+
+	var r0 uuid.UUID
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (uuid.UUID, error)); ok {
+		return rf(ctx, token)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) uuid.UUID); ok {
+		r0 = rf(ctx, token)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(uuid.UUID)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, token)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NewTokensGenerator creates a new instance of TokensGenerator. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewTokensGenerator(t interface {

@@ -2,6 +2,6 @@ package dto
 
 import "github.com/google/uuid"
 
-type GetUserByID struct {
+type GetUserRequest struct {
 	ID uuid.UUID `json:"id"`
 }
