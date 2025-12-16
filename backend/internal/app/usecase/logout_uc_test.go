@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -18,7 +19,6 @@ import (
 )
 
 func TestLogoutUC_Execute(t *testing.T) {
-	// Подготовка тестовых данных
 	validRefreshToken := "raw_refresh_token_123"
 	userID := uuid.New()
 
@@ -57,13 +57,22 @@ func TestLogoutUC_Execute(t *testing.T) {
 			},
 		},
 		{
-			name:  "Error: Token Not Found",
+			name:  "Error: Get Token Failed",
 			input: dto.LogoutRequest{RefreshToken: validRefreshToken},
 			mockSetup: func(tr *mocks.TokenRepository) {
 				// GetByHash возвращает ошибку (токен не найден или БД ошибка)
 				tr.On("GetByHash", mock.Anything, mock.Anything).Return(nil, errors.New("token not found"))
 			},
 			wantErr:  uc_errors.GetRefreshTokenByHashError,
+			wantResp: nil,
+		},
+		{
+			name:  "Error: Token Not Found",
+			input: dto.LogoutRequest{RefreshToken: validRefreshToken},
+			mockSetup: func(tr *mocks.TokenRepository) {
+				tr.On("GetByHash", mock.Anything, mock.Anything).Return(nil, sql.ErrNoRows)
+			},
+			wantErr:  uc_errors.RefreshTokenNotFoundError,
 			wantResp: nil,
 		},
 		{

@@ -88,7 +88,7 @@ func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
 				    updated_at = NOW() 
 			  WHERE id = :id`
 
-	res, err := r.db.ExecContext(ctx, query, user)
+	res, err := r.db.NamedExecContext(ctx, query, user)
 	if err != nil {
 		return fmt.Errorf("failed to update user using db: %w", err)
 	}
