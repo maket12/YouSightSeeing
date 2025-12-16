@@ -44,6 +44,8 @@ func HttpError(err error) (int, string, error) {
 		errors.Is(err, uc_errors.EmptyGoogleSubError),
 		errors.Is(err, uc_errors.EmailNotVerifiedError),
 		errors.Is(err, uc_errors.EmptyGoogleTokenError),
+		errors.Is(err, uc_errors.GoogleTokenValidationError),
+		errors.Is(err, uc_errors.EmptyRefreshTokenError),
 		errors.Is(err, uc_errors.EmptyRefreshTokenError),
 		errors.Is(err, uc_errors.InvalidUserID):
 		return http.StatusBadRequest, err.Error(), nil
