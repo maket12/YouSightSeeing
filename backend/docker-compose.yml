@@ -46,10 +46,11 @@ services:
       HTTP_ADDRESS: ":8080"
       LOG_LEVEL: "DEBUG"
       GOOGLE_CLIENT_ID: "https://724221636509-15a91ov9eb4r0biddvd8eh6ah0bl8u0e.apps.googleusercontent.com"
-      ACCESS_SECRET: super-access-safe-secret-key
+      ACCESS_SECRET: "super-access-safe-secret-key"
       ACCESS_DURATION: "15m"
-      REFRESH_SECRET: super-refresh-safe-secret-key
+      REFRESH_SECRET: "super-refresh-safe-secret-key"
       REFRESH_DURATION: "1h"
+      ORS_API_KEY: "ors-api-key"
     ports:
       - "8080:8080"
 
