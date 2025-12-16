@@ -1,7 +1,7 @@
 package dto
 
 type RouteResponse struct {
-	Route    []Point `json:"route"`
-	Distance float64 `json:"distance"`
-	Duration float64 `json:"duration"`
+	Route    [][]float64 `json:"route"`
+	Distance float64     `json:"distance"`
+	Duration float64     `json:"duration"`
 }
