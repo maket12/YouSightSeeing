@@ -88,7 +88,7 @@ func (uc *UpdateUserUC) Execute(ctx context.Context, in dto.UpdateUserRequest) (
 			return dto.UpdateUserResponse{
 				ID:      user.ID,
 				Updated: false,
-			}, err
+			}, uc_errors.UserNotFoundError
 		}
 		return dto.UpdateUserResponse{
 			ID:      user.ID,
