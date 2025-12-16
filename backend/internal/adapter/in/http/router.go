@@ -15,13 +15,15 @@ type Router struct {
 	JWTGen port.TokensGenerator
 	Auth   *AuthHandler
 	Users  *UserHandler
+	Route  *RouteHandler
 }
 
-func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler) *Router {
+func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler) *Router {
 	return &Router{
 		JWTGen: jwtGen,
 		Auth:   auth,
 		Users:  users,
+		Route:  route,
 	}
 }
 
@@ -51,7 +53,8 @@ func (r *Router) InitRoutes() *echo.Echo {
 			users.PUT("/me/picture", r.Users.UpdateMePicture)
 		}
 	}
-
+	routesGroup := privateApi.Group("/routes")
+	routesGroup.POST("/calculate", r.Route.CalculateRoute)
 	router.GET("/openapi.yaml", func(c echo.Context) error {
 		return c.File("docs/openapi.yaml")
 	})
