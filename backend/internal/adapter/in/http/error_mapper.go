@@ -37,8 +37,13 @@ func HttpError(err error) (int, string, error) {
 		errors.Is(err, uc_errors.EmailNotVerifiedError),
 		errors.Is(err, uc_errors.EmptyGoogleTokenError),
 		errors.Is(err, uc_errors.GoogleTokenValidationError),
-		errors.Is(err, uc_errors.EmptyRefreshTokenError):
+		errors.Is(err, uc_errors.EmptyRefreshTokenError),
+		errors.Is(err, uc_errors.ErrInvalidRoutePoints):
 		return http.StatusBadRequest, err.Error(), nil
+	}
+
+	if errors.Is(err, uc_errors.ErrRouteCalculationFailed) {
+		return http.StatusInternalServerError, "failed to calculate route", nil
 	}
 
 	return http.StatusInternalServerError, "internal error", nil

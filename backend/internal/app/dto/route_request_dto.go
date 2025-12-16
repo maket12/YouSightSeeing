@@ -6,8 +6,8 @@ type Point struct {
 }
 
 type RouteRequest struct {
-	Points        []Point `json:"points"`
-	Profile       string  `json:"profile,omitempty"`
-	Preference    string  `json:"preference,omitempty"`
-	OptimizeOrder bool    `json:"optimize_order,omitempty"`
+	Coordinates   [][]float64 `json:"coordinates"`
+	Profile       string      `json:"profile,omitempty"`
+	Preference    string      `json:"preference,omitempty"`
+	OptimizeOrder bool        `json:"optimize_order,omitempty"`
 }

@@ -10,6 +10,20 @@ import (
 	"time"
 )
 
+type orsResponseRaw struct {
+	Features []struct {
+		Geometry struct {
+			Coordinates [][]float64 `json:"coordinates"`
+		} `json:"geometry"`
+		Properties struct {
+			Summary struct {
+				Distance float64 `json:"distance"`
+				Duration float64 `json:"duration"`
+			} `json:"summary"`
+		} `json:"properties"`
+	} `json:"features"`
+}
+
 type ORSAdapter struct {
 	APIKey     string
 	BaseURL    string
@@ -24,10 +38,10 @@ func NewORSAdapter(apikey string) *ORSAdapter {
 	}
 }
 
-func (a *ORSAdapter) CalculateRoute(ctx context.Context, req entity.ORSRequest) (map[string]interface{}, error) {
+func (a *ORSAdapter) CalculateRoute(ctx context.Context, req entity.ORSRequest) (entity.Route, error) {
 	reqBodyResponse, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal ORS request: %w", err)
+		return entity.Route{}, fmt.Errorf("failed to marshal ORS request: %w", err)
 	}
 
 	profile := "foot-walking"
@@ -35,7 +49,7 @@ func (a *ORSAdapter) CalculateRoute(ctx context.Context, req entity.ORSRequest) 
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(reqBodyResponse))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create http request: %w", err)
+		return entity.Route{}, fmt.Errorf("failed to create http request: %w", err)
 	}
 
 	httpReq.Header.Set("Authorization", a.APIKey)
@@ -43,16 +57,26 @@ func (a *ORSAdapter) CalculateRoute(ctx context.Context, req entity.ORSRequest) 
 
 	resp, err := a.HTTPClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("ors api request failed: %w", err)
+		return entity.Route{}, fmt.Errorf("ors api request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ors api returned error status: %d", resp.StatusCode)
+		return entity.Route{}, fmt.Errorf("ors api returned error status: %d", resp.StatusCode)
 	}
-	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode ors response: %w", err)
+	var raw orsResponseRaw
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return entity.Route{}, fmt.Errorf("failed to decode ors response: %w", err)
 	}
-	return result, nil
+	if len(raw.Features) == 0 {
+		return entity.Route{}, fmt.Errorf("no features in response")
+	}
+
+	feature := raw.Features[0]
+
+	return entity.Route{
+		Geometry: feature.Geometry.Coordinates,
+		Distance: feature.Properties.Summary.Distance,
+		Duration: feature.Properties.Summary.Duration,
+	}, nil
 }

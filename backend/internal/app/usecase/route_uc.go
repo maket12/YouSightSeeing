@@ -2,7 +2,7 @@ package usecase
 
 import (
 	"context"
-	"fmt"
+	"math"
 
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
@@ -20,87 +20,101 @@ func NewRouteUC(service port.RouteService) *RouteUC {
 	}
 }
 
-func (uc *RouteUC) Execute(ctx context.Context, req dto.RouteRequest) (*dto.RouteResponse, error) {
+type orsResponseRaw struct {
+	Features []struct {
+		Geometry struct {
+			Coordinates [][]float64 `json:"coordinates"`
+		} `json:"geometry"`
+		Properties struct {
+			Summary struct {
+				Distance float64 `json:"distance"`
+				Duration float64 `json:"duration"`
+			} `json:"summary"`
+		} `json:"properties"`
+	} `json:"features"`
+}
+
+func (uc *RouteUC) Execute(ctx context.Context, req dto.RouteRequest) (dto.RouteResponse, error) {
 	//validation
-	if len(req.Points) < 2 {
-		return nil, uc_errors.ErrInvalidRoutePoints
-	}
-	//меняем местами широту и долготу, потому что ors требует формат [lon, lat]
-	coordinates := make([][]float64, 0, len(req.Points))
-	for _, p := range req.Points {
-		coordinates = append(coordinates, []float64{p.Lon, p.Lat})
+	if len(req.Coordinates) < 2 {
+		return dto.RouteResponse{}, uc_errors.ErrInvalidRoutePoints
 	}
 
-	//запрос к сущности ors
+	sortedPoints := sortPointsNearestNeighbor(req.Coordinates)
+
 	orsReq := entity.ORSRequest{
-		Coordinates:  coordinates,
+		Coordinates:  sortedPoints,
 		Instructions: false,
 		Geometry:     true,
 	}
 
-	//вызываем адаптер
-	rawResponse, err := uc.RouteService.CalculateRoute(ctx, orsReq)
+	routeEntity, err := uc.RouteService.CalculateRoute(ctx, orsReq)
 	if err != nil {
-		//Логируем реальную ошибку, но пользователю отдаем общую
-		fmt.Printf("ORS Error: %v\n", err)
-		return nil, uc_errors.ErrRouteCalculationFailed
+		return dto.RouteResponse{}, uc_errors.Wrap(uc_errors.ErrRouteCalculationFailed, err)
 	}
 
-	respDTO, err := parseORSResponse(rawResponse)
-	if err != nil {
-		fmt.Printf("Parse error: %v\n", err)
-		return nil, uc_errors.ErrRouteCalculationFailed
-	}
-	return respDTO, nil
+	return dto.RouteResponse{
+		Route:    routeEntity.Geometry,
+		Distance: routeEntity.Distance,
+		Duration: routeEntity.Duration,
+	}, nil
 }
 
-// парсим json ответ от ors
-func parseORSResponse(data map[string]interface{}) (*dto.RouteResponse, error) {
-	features, ok := data["features"].([]interface{})
-	if !ok || len(features) == 0 {
-		return nil, fmt.Errorf("no features in response")
+func sortPointsNearestNeighbor(points [][]float64) [][]float64 {
+	if len(points) <= 2 {
+		return points
 	}
 
-	feature := features[0].(map[string]interface{})
+	// Копируем исходный слайс, чтобы не мутировать входные данные
+	unvisited := make([][]float64, len(points))
+	copy(unvisited, points)
 
-	//достаём линию маршрута
-	geometry, ok := feature["geometry"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("no geometry")
-	}
+	// Результирующий путь начинается с первой точки
+	path := make([][]float64, 0, len(points))
+	current := unvisited[0]
+	path = append(path, current)
 
-	rawCoords, ok := geometry["coordinates"].([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("no coordinates")
-	}
+	// Удаляем стартовую точку из списка "непосещенных"
+	unvisited = unvisited[1:]
 
-	//преобразуем [][]interface{} -> []dto.Point
-	routePath := make([]dto.Point, 0, len(rawCoords))
-	for _, rc := range rawCoords {
-		pointPair, ok := rc.([]interface{})
-		if ok && len(pointPair) >= 2 {
-			//ORS возвращает [lon, lat], нам нужно в DTO [lat, lon]
-			lon := pointPair[0].(float64)
-			lat := pointPair[1].(float64)
-			routePath = append(routePath, dto.Point{Lat: lat, Lon: lon})
-		}
-	}
+	for len(unvisited) > 0 {
+		nearestIndex := -1
+		minDist := math.MaxFloat64
 
-	//достаём статистику (время, дистанцию)
-	var distance, duration float64
-	if props, ok := feature["properties"].(map[string]interface{}); ok {
-		if summary, ok := props["summary"].(map[string]interface{}); ok {
-			if d, ok := summary["distance"].(float64); ok {
-				distance = d
-			}
-			if t, ok := summary["duration"].(float64); ok {
-				duration = t
+		// Ищем ближайшую точку среди непосещенных
+		for i, p := range unvisited {
+			dist := haversine(current[1], current[0], p[1], p[0])
+			if dist < minDist {
+				minDist = dist
+				nearestIndex = i
 			}
 		}
+
+		// Добавляем найденную точку в путь
+		current = unvisited[nearestIndex]
+		path = append(path, current)
+
+		// Удаляем её из непосещенных (эффективное удаление из середины слайса)
+		unvisited = append(unvisited[:nearestIndex], unvisited[nearestIndex+1:]...)
 	}
-	return &dto.RouteResponse{
-		Route:    routePath,
-		Distance: distance,
-		Duration: duration,
-	}, nil
+
+	return path
+}
+
+// haversine вычисляет расстояние между двумя координатами (в км)
+// lat1, lon1 - первая точка
+// lat2, lon2 - вторая точка
+func haversine(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371 // Радиус Земли в км
+	dLat := (lat2 - lat1) * (math.Pi / 180.0)
+	dLon := (lon2 - lon1) * (math.Pi / 180.0)
+
+	lat1Rad := lat1 * (math.Pi / 180.0)
+	lat2Rad := lat2 * (math.Pi / 180.0)
+
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Sin(dLon/2)*math.Sin(dLon/2)*math.Cos(lat1Rad)*math.Cos(lat2Rad)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return R * c
 }
