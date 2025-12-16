@@ -27,7 +27,7 @@ func (h *RouteHandler) CalculateRoute(c echo.Context) error {
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid json",
+			"error": "invalid json",
 		})
 	}
 
@@ -39,7 +39,6 @@ func (h *RouteHandler) CalculateRoute(c echo.Context) error {
 			slog.String("public_msg", msg),
 			slog.Any("cause", internalErr),
 		)
-
 		return c.JSON(status, map[string]string{"error": msg})
 	}
 
