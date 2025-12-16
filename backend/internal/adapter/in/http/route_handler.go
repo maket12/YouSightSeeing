@@ -12,10 +12,10 @@ import (
 
 type RouteHandler struct {
 	log     *slog.Logger
-	RouteUC *usecase.RouteUC
+	RouteUC *usecase.CalculateRouteUC
 }
 
-func NewRouteHandler(log *slog.Logger, uc *usecase.RouteUC) *RouteHandler {
+func NewRouteHandler(log *slog.Logger, uc *usecase.CalculateRouteUC) *RouteHandler {
 	return &RouteHandler{
 		log:     log,
 		RouteUC: uc,
@@ -23,7 +23,7 @@ func NewRouteHandler(log *slog.Logger, uc *usecase.RouteUC) *RouteHandler {
 }
 
 func (h *RouteHandler) CalculateRoute(c echo.Context) error {
-	var req dto.RouteRequest
+	var req dto.CalculateRouteRequest
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{

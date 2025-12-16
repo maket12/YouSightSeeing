@@ -30,7 +30,7 @@ type RouteCalculator struct {
 	HTTPClient *http.Client
 }
 
-func NewORSAdapter(apiKey string) *RouteCalculator {
+func NewRouteCalculator(apiKey string) *RouteCalculator {
 	return &RouteCalculator{
 		APIKey:     apiKey,
 		BaseURL:    "https://api.openrouteservice.org/v2/directions",
