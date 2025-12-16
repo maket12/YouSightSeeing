@@ -1,8 +1,9 @@
-package usecase
+package usecase_test
 
 import (
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port/mocks"
 	"context"
@@ -46,7 +47,7 @@ var GetUserTestCases = []GetUserTestCase{
 		},
 		ExceptGet: true,
 		GetErr:    sql.ErrNoRows,
-		WantErr:   sql.ErrNoRows,
+		WantErr:   uc_errors.UserNotFoundError,
 	},
 
 	{
@@ -74,7 +75,7 @@ func TestGetUserUC(t *testing.T) {
 	for _, tt := range GetUserTestCases {
 		t.Run(tt.Name, func(t *testing.T) {
 			repo := new(mocks.UserRepository)
-			uc := NewGetUserUC(repo)
+			uc := usecase.NewGetUserUC(repo)
 
 			if tt.ExceptGet {
 				repo.On("GetByID", mock.Anything, mock.Anything).
