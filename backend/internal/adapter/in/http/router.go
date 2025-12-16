@@ -54,6 +54,13 @@ func (r *Router) InitRoutes() *echo.Echo {
 	}
 	routesGroup := privateApi.Group("/routes")
 	routesGroup.POST("/calculate", r.Route.CalculateRoute)
+	router.GET("/openapi.yaml", func(c echo.Context) error {
+		return c.File("docs/openapi.yaml")
+	})
+
+	router.GET("/swagger/*", echo.WrapHandler(
+		v5emb.New("YouSightSeeing API", "/openapi.yaml", "/swagger/"),
+	))
 	return router
 }
 
