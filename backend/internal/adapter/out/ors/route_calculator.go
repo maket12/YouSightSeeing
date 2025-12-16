@@ -24,21 +24,21 @@ type orsResponseRaw struct {
 	} `json:"features"`
 }
 
-type ORSAdapter struct {
+type RouteCalculator struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func NewORSAdapter(apikey string) *ORSAdapter {
-	return &ORSAdapter{
-		APIKey:     apikey,
+func NewORSAdapter(apiKey string) *RouteCalculator {
+	return &RouteCalculator{
+		APIKey:     apiKey,
 		BaseURL:    "https://api.openrouteservice.org/v2/directions",
 		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
-func (a *ORSAdapter) CalculateRoute(ctx context.Context, req entity.ORSRequest) (entity.Route, error) {
+func (a *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequest) (entity.Route, error) {
 	reqBodyResponse, err := json.Marshal(req)
 	if err != nil {
 		return entity.Route{}, fmt.Errorf("failed to marshal ORS request: %w", err)
