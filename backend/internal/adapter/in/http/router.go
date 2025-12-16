@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/swaggest/swgui/v5emb"
 )
 
 type Router struct {
@@ -51,6 +52,13 @@ func (r *Router) InitRoutes() *echo.Echo {
 		}
 	}
 
+	router.GET("/openapi.yaml", func(c echo.Context) error {
+		return c.File("docs/openapi.yaml")
+	})
+
+	router.GET("/swagger/*", echo.WrapHandler(
+		v5emb.New("YouSightSeeing API", "/openapi.yaml", "/swagger/"),
+	))
 	return router
 }
 
