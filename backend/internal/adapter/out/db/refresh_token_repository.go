@@ -50,15 +50,15 @@ func (r *RefreshTokenRepository) GetByHash(ctx context.Context, tokenHash string
 			  FROM refresh_tokens
 			  WHERE token_hash = $1`
 
-	var refreshToken *entity.RefreshToken
-	if err := r.db.GetContext(ctx, refreshToken, query, tokenHash); err != nil {
+	var refreshToken entity.RefreshToken
+	if err := r.db.GetContext(ctx, &refreshToken, query, tokenHash); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("failed to get refresh token using db: %w", err)
 	}
 
-	return refreshToken, nil
+	return &refreshToken, nil
 }
 
 func (r *RefreshTokenRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.RefreshToken, error) {
@@ -69,15 +69,15 @@ func (r *RefreshTokenRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 			  FROM refresh_tokens
 			  WHERE id = $1`
 
-	var refreshToken *entity.RefreshToken
-	if err := r.db.GetContext(ctx, refreshToken, query, id); err != nil {
+	var refreshToken entity.RefreshToken
+	if err := r.db.GetContext(ctx, &refreshToken, query, id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("failed to get refresh token using db: %w", err)
 	}
 
-	return refreshToken, nil
+	return &refreshToken, nil
 }
 
 func (r *RefreshTokenRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*entity.RefreshToken, error) {
@@ -88,15 +88,15 @@ func (r *RefreshTokenRepository) GetByUserID(ctx context.Context, userID uuid.UU
 			  FROM refresh_tokens
 			  WHERE user_id = $1 AND is_revoked = false`
 
-	var refreshToken *entity.RefreshToken
-	if err := r.db.GetContext(ctx, refreshToken, query, userID); err != nil {
+	var refreshToken entity.RefreshToken
+	if err := r.db.GetContext(ctx, &refreshToken, query, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("failed to get refresh token using db: %w", err)
 	}
 
-	return refreshToken, nil
+	return &refreshToken, nil
 }
 
 func (r *RefreshTokenRepository) Revoke(ctx context.Context, tokenHash string, reason string) error {
