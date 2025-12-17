@@ -6,6 +6,8 @@ import (
 	"YouSightSeeing/backend/internal/app/utils"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
+	"database/sql"
+	"errors"
 )
 
 type LogoutUC struct {
@@ -29,6 +31,9 @@ func (uc *LogoutUC) Execute(ctx context.Context, in dto.LogoutRequest) (dto.Logo
 
 	refreshToken, err := uc.RefreshTokens.GetByHash(ctx, hashedToken)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return dto.LogoutResponse{}, uc_errors.RefreshTokenNotFoundError
+		}
 		return dto.LogoutResponse{}, uc_errors.Wrap(uc_errors.GetRefreshTokenByHashError, err)
 	}
 
