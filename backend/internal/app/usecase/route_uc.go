@@ -65,23 +65,19 @@ func sortPointsNearestNeighbor(points [][]float64) [][]float64 {
 		return points
 	}
 
-	// Копируем исходный слайс, чтобы не мутировать входные данные
 	unvisited := make([][]float64, len(points))
 	copy(unvisited, points)
 
-	// Результирующий путь начинается с первой точки
 	path := make([][]float64, 0, len(points))
 	current := unvisited[0]
 	path = append(path, current)
 
-	// Удаляем стартовую точку из списка "непосещенных"
 	unvisited = unvisited[1:]
 
 	for len(unvisited) > 0 {
 		nearestIndex := -1
 		minDist := math.MaxFloat64
 
-		// Ищем ближайшую точку среди непосещенных
 		for i, p := range unvisited {
 			dist := haversine(current[1], current[0], p[1], p[0])
 			if dist < minDist {
@@ -90,22 +86,17 @@ func sortPointsNearestNeighbor(points [][]float64) [][]float64 {
 			}
 		}
 
-		// Добавляем найденную точку в путь
 		current = unvisited[nearestIndex]
 		path = append(path, current)
 
-		// Удаляем её из непосещенных (эффективное удаление из середины слайса)
 		unvisited = append(unvisited[:nearestIndex], unvisited[nearestIndex+1:]...)
 	}
 
 	return path
 }
 
-// haversine вычисляет расстояние между двумя координатами (в км)
-// lat1, lon1 - первая точка
-// lat2, lon2 - вторая точка
 func haversine(lat1, lon1, lat2, lon2 float64) float64 {
-	const R = 6371 // Радиус Земли в км
+	const R = 6371
 	dLat := (lat2 - lat1) * (math.Pi / 180.0)
 	dLon := (lon2 - lon1) * (math.Pi / 180.0)
 
