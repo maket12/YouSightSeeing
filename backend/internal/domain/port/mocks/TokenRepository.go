@@ -268,24 +268,6 @@ func (_m *TokenRepository) Revoke(ctx context.Context, tokenHash string, reason 
 	return r0
 }
 
-// RevokeAllForUser provides a mock function with given fields: ctx, userID, reason
-func (_m *TokenRepository) RevokeAllForUser(ctx context.Context, userID uuid.UUID, reason string) error {
-	ret := _m.Called(ctx, userID, reason)
-
-	if len(ret) == 0 {
-		panic("no return value specified for RevokeAllForUser")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID, string) error); ok {
-		r0 = rf(ctx, userID, reason)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
 // RevokeByID provides a mock function with given fields: ctx, id, reason
 func (_m *TokenRepository) RevokeByID(ctx context.Context, id uuid.UUID, reason string) error {
 	ret := _m.Called(ctx, id, reason)
