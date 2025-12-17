@@ -12,10 +12,10 @@ import (
 
 type RouteHandler struct {
 	log     *slog.Logger
-	RouteUC *usecase.CalculateRouteUC
+	RouteUC usecase.CalculateRouteUseCase
 }
 
-func NewRouteHandler(log *slog.Logger, uc *usecase.CalculateRouteUC) *RouteHandler {
+func NewRouteHandler(log *slog.Logger, uc usecase.CalculateRouteUseCase) *RouteHandler {
 	return &RouteHandler{
 		log:     log,
 		RouteUC: uc,
