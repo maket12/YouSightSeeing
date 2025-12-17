@@ -52,9 +52,12 @@ func (r *Router) InitRoutes() *echo.Echo {
 			users.PATCH("/me", r.Users.UpdateMe)
 			users.PUT("/me/picture", r.Users.UpdateMePicture)
 		}
+		routesGroup := privateApi.Group("/routes")
+		{
+			routesGroup.GET("/calculate", r.Route.CalculateRoute)
+		}
 	}
-	routesGroup := privateApi.Group("/routes")
-	routesGroup.POST("/calculate", r.Route.CalculateRoute)
+
 	router.GET("/openapi.yaml", func(c echo.Context) error {
 		return c.File("docs/openapi.yaml")
 	})
