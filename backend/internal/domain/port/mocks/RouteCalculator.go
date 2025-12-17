@@ -15,22 +15,24 @@ type RouteCalculator struct {
 }
 
 // CalculateRoute provides a mock function with given fields: ctx, req
-func (_m *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequest) (entity.Route, error) {
+func (_m *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequest) (*entity.Route, error) {
 	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CalculateRoute")
 	}
 
-	var r0 entity.Route
+	var r0 *entity.Route
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, entity.ORSRequest) (entity.Route, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, entity.ORSRequest) (*entity.Route, error)); ok {
 		return rf(ctx, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, entity.ORSRequest) entity.Route); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, entity.ORSRequest) *entity.Route); ok {
 		r0 = rf(ctx, req)
 	} else {
-		r0 = ret.Get(0).(entity.Route)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*entity.Route)
+		}
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, entity.ORSRequest) error); ok {

@@ -16,63 +16,64 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type GetUserTestCase struct {
-	Name  string
-	Input dto.GetUserRequest
-
-	ExceptGet bool
-	GetOut    *entity.User
-	GetErr    error
-
-	WantResp dto.GetUserResponse
-	WantErr  error
-}
-
-var testGetUID = uuid.New()
-
-var GetUserTestCases = []GetUserTestCase{
-	{
-		Name: "invalid user id",
-		Input: dto.GetUserRequest{
-			ID: uuid.Nil,
-		},
-		ExceptGet: false,
-		WantErr:   uc_errors.InvalidUserID,
-	},
-
-	{
-		Name: "user not found",
-		Input: dto.GetUserRequest{
-			ID: testGetUID,
-		},
-		ExceptGet: true,
-		GetErr:    sql.ErrNoRows,
-		WantErr:   uc_errors.UserNotFoundError,
-	},
-
-	{
-		Name: "repository error",
-		Input: dto.GetUserRequest{
-			ID: testGetUID,
-		},
-		ExceptGet: true,
-		GetErr:    errors.New("db error"),
-		WantErr:   uc_errors.GetUserError,
-	},
-
-	{
-		Name: "success",
-		Input: dto.GetUserRequest{
-			ID: testGetUID,
-		},
-		ExceptGet: true,
-		GetOut:    &entity.User{ID: testGetUID},
-		WantResp:  dto.GetUserResponse{User: dto.UserResponse{ID: testGetUID}},
-	},
-}
-
 func TestGetUserUC(t *testing.T) {
-	for _, tt := range GetUserTestCases {
+	type GetUserTestCase struct {
+		Name  string
+		Input dto.GetUserRequest
+
+		ExceptGet bool
+		GetOut    *entity.User
+		GetErr    error
+
+		WantResp dto.GetUserResponse
+		WantErr  error
+	}
+
+	var (
+		testGetUID       = uuid.New()
+		getUserTestCases = []GetUserTestCase{
+			{
+				Name: "invalid user id",
+				Input: dto.GetUserRequest{
+					ID: uuid.Nil,
+				},
+				ExceptGet: false,
+				WantErr:   uc_errors.InvalidUserID,
+			},
+
+			{
+				Name: "user not found",
+				Input: dto.GetUserRequest{
+					ID: testGetUID,
+				},
+				ExceptGet: true,
+				GetErr:    sql.ErrNoRows,
+				WantErr:   uc_errors.UserNotFoundError,
+			},
+
+			{
+				Name: "repository error",
+				Input: dto.GetUserRequest{
+					ID: testGetUID,
+				},
+				ExceptGet: true,
+				GetErr:    errors.New("db error"),
+				WantErr:   uc_errors.GetUserError,
+			},
+
+			{
+				Name: "success",
+				Input: dto.GetUserRequest{
+					ID: testGetUID,
+				},
+				ExceptGet: true,
+				GetOut:    &entity.User{ID: testGetUID},
+				WantResp:  dto.GetUserResponse{User: dto.UserResponse{ID: testGetUID}},
+			},
+		}
+	)
+
+	for _, tt := range getUserTestCases {
 		t.Run(tt.Name, func(t *testing.T) {
 			repo := new(mocks.UserRepository)
 			uc := usecase.NewGetUserUC(repo)

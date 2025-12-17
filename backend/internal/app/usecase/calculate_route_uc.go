@@ -39,7 +39,7 @@ func (uc *CalculateRouteUC) Execute(ctx context.Context, req dto.CalculateRouteR
 	}
 
 	return dto.CalculateRouteResponse{
-		Route:    routeEntity.Geometry,
+		Points:   routeEntity.Geometry,
 		Distance: routeEntity.Distance,
 		Duration: routeEntity.Duration,
 	}, nil
