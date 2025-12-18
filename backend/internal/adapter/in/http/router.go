@@ -54,7 +54,7 @@ func (r *Router) InitRoutes() *echo.Echo {
 		}
 		routesGroup := privateApi.Group("/routes")
 		{
-			routesGroup.GET("/calculate", r.Route.CalculateRoute)
+			routesGroup.POST("/calculate", r.Route.CalculateRoute)
 		}
 	}
 
