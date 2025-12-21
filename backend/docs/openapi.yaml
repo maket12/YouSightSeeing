@@ -6,11 +6,13 @@ info:
 
 tags:
   - name: Auth
-    description: Авторизация и профиль
+    description: Авторизация
+  - name: Users
+    description: Информация о пользователе
+  - name: Routes
+    description: Построение маршрутов
   - name: Places
     description: Поиск достопримечательностей (прокси к Geopify)
-  - name: Routes
-    description: Маршруты пользователя
 
 components:
   securitySchemes:
@@ -23,73 +25,222 @@ components:
     # --- ОШИБКИ ---
     ErrorResponse:
       type: object
+      required: [ error ]
       properties:
         error:
           type: string
-          example: "Invalid token"
-    
+          description: Текст ошибки
+
+
     # --- МОДЕЛИ ---
     User:
       type: object
       properties:
         id:
-          type: integer
-          example: 1
-        google_id:
           type: string
-          example: "1029384756"
-        name:
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        google_sub:
           type: string
-          example: "Kirill"
+          example: "10769150350006150715113082367"
         email:
           type: string
-          example: "kirill@example.com"
-        avatar_url:
+          example: "kirpich@example.com"
+        full_name:
           type: string
-
-    Place:
-      type: object
-      required: [name, lat, lon, category]
-      properties:
-        name:
+          example: "Kirill Kirpichov"
+        picture:
           type: string
-          example: "Tretyakov Gallery"
-        lat:
-          type: number
-          format: double
-          example: 55.741
-        lon:
-          type: number
-          format: double
-          example: 37.620
-        category:
+          format: uri
+          example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
+        first_name:
           type: string
-          enum: [museum, park, cafe, monument, other]
-        address:
+          example: "Kirill"
+        last_name:
           type: string
-          nullable: true
-        
-    Route:
-      type: object
-      properties:
-        id:
-          type: integer
-        name:
+          example: "Kirpichov"
+        email_verified:
+          type: boolean
+          example: true
+        google_domain:
           type: string
-          example: "Прогулка по центру"
-        points:
-          type: array
-          items:
-            $ref: '#/components/schemas/Place'
-        duration_seconds:
-          type: integer
-          example: 3600
-        distance_meters:
-          type: integer
-          example: 5000
+          example: "example.com"
+        locale:
+          type: string
+          example: "ru"
         created_at:
           type: string
           format: date-time
+          example: "2025-12-08T18:44:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-12-09T10:00:00Z"
+
+    GoogleAuthRequest:
+      type: object
+      required: [google_token]
+      properties:
+        google_token:
+          type: string
+          description: "Токен, полученный от Google Sign-In на клиенте"
+          example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjNmZThhMDEyNzYyNjU5M2Q5YzRmZWU2NjE3ZjU3Z..."
+
+    GoogleAuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: "JWT токен доступа"
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: "Refresh токен для обновления access_token"
+          example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
+        user:
+          $ref: '#/components/schemas/User'
+
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: "Действующий refresh токен пользователя"
+          example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
+
+    RefreshTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: "JWT токен доступа"
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: "Новый refresh токен"
+          example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
+        user:
+          $ref: '#/components/schemas/User'
+
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: "Действующий refresh токен пользователя"
+          example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
+
+    LogoutResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        logout:
+          type: boolean
+          example: true
+
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          example: "shishi@example.com"
+        full_name:
+          type: string
+          example: "Vladimir Ziabkin"
+        picture:
+          type: string
+          format: uri
+          example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
+        first_name:
+          type: string
+          example: "Vladimir"
+        last_name:
+          type: string
+          example: "Ziabkin"
+
+    UpdateUserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        updated:
+          type: boolean
+          example: true
+        user:
+          $ref: '#/components/schemas/User'
+
+    UpdateUserPictureRequest:
+      type: object
+      required: [picture]
+      properties:
+        picture:
+          type: string
+          format: uri
+          description: Set empty string to delete
+          example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
+
+    UpdateUserPictureResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        updated:
+          type: boolean
+          example: true
+        user:
+          $ref: '#/components/schemas/User'
+
+    RouteRequest:
+      type: object
+      properties:
+        coordinates:
+          type: array
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
+              format: double
+          description: Array of [lon, lat] pairs
+        profile:
+          type: string
+        preference:
+          type: string
+        optimize_order:
+          type: boolean
+      required: [ coordinates, profile ]
+
+    RouteResponse:
+      type: object
+      properties:
+        points:
+          type: array
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
+              format: double
+          description: Route geometry as [lon, lat] pairs
+        distance:
+          type: number
+          format: double
+        duration:
+          type: number
+          format: double
+      required: [ points, distance, duration ]
 
 paths:
   # ==========================
@@ -98,161 +249,386 @@ paths:
   /auth/google:
     post:
       tags: [Auth]
+      security: []
       summary: Вход через Google
-      description: Принимает Google ID Token, возвращает наш JWT и данные юзера
+      description: "Создает нового пользователя или авторизует существующего через Google ID Token"
+      operationId: authGoogle
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [id_token]
-              properties:
-                id_token:
-                  type: string
-                  description: Токен полученный от Google SDK на андроиде
+              $ref: '#/components/schemas/GoogleAuthRequest'
       responses:
-        '200':
-          description: Успешный вход
+        '201':
+          description: Успешная авторизация
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  token:
-                    type: string
-                    description: JWT токен для будущих запросов
-                  user:
-                    $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/GoogleAuthResponse'
+        '400':
+          description: Неверный формат запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                missing_google_token:
+                  value: { error: "google_token is required" }
         '401':
-          description: Неверный токен Google
+          description: Токен Google невалиден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                empty_sub:
+                  value: { error: "empty google sub" }
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                google_validation:
+                  value: { error: "failed to validate google token" }
 
-  /user/profile:
-    get:
+  /auth/refresh:
+    post:
       tags: [Auth]
-      summary: Получить профиль текущего пользователя
+      security: []
+      summary: Обновление токенов
+      description: "Получает новый Access Token по валидному Refresh Token"
+      operationId: authRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Токены успешно обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                empty_refresh_token:
+                  value: { error: "empty refresh token" }
+        '401':
+          description: Refresh токен истек или отозван
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                expired:
+                  value: { error: "expired refresh token" }
+                revoked:
+                  value: { error: "refresh token has already been revoked" }
+        '404':
+          description: Refresh токен не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value: { error: "refresh token not found"}
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                create:
+                  value: { error: "failed to create refresh token" }
+                revoke:
+                  value: { error: "failed to revoke refresh token" }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Выход из системы
+      description: "Отзывает указанный Refresh Token, делая его невалидным."
+      operationId: authLogout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Успешный выход
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                empty_refresh_token:
+                  value: { error: "empty refresh token" }
+        '404':
+          description: Refresh токен не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value: { error: "refresh token not found" }
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                revoke:
+                  value: { error: "failed to revoke refresh token" }
+
+
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Получить информацию о текущем пользователе
       security:
         - BearerAuth: []
       responses:
         '200':
+          description: "Информация о текущем пользователе"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
-
-  # ==========================
-  # ПОИСК МЕСТ (PROXY)
-  # ==========================
-  /places/search:
-    get:
-      tags: [Places]
-      summary: Найти места рядом (через Geopify)
-      description: Бэкэнд сам сходит в Geopify API и вернет чистый список
-      parameters:
-        - name: lat
-          in: query
-          required: true
-          schema:
-            type: number
-            format: double
-        - name: lon
-          in: query
-          required: true
-          schema:
-            type: number
-            format: double
-        - name: radius
-          in: query
-          description: Радиус поиска в метрах (по умолчанию 1000)
-          schema:
-            type: integer
-            default: 1000
-        - name: categories
-          in: query
-          description: Категории через запятую (museum,park,cafe)
-          schema:
-            type: string
-      responses:
-        '200':
+        '400':
+          description: Некорректный запрос
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  places:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Place'
-
-  # ==========================
-  # МАРШРУТЫ
-  # ==========================
-  /routes:
-    get:
-      tags: [Routes]
-      summary: Получить список сохраненных маршрутов
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                invalid_user_id:
+                  value: { error: "invalid user id" }
+        '401':
+          description: Требуется авторизация
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  routes:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Route'
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth:
+                  value: { error: "Authorization header required" }
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value: { error: "user not found" }
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                get:
+                  value: { error: "failed to get user" }
 
     post:
-      tags: [Routes]
-      summary: Сохранить маршрут
+      tags: [ Users ]
+      summary: Обновить информацию о текущем пользователе
       security:
-        - BearerAuth: []
+        - BearerAuth: [ ]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name, points]
-              properties:
-                name:
-                  type: string
-                points:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/Place'
-                duration:
-                  type: integer
-                distance:
-                  type: integer
+              $ref: '#/components/schemas/UpdateUserRequest'
       responses:
-        '201':
-          description: Маршрут сохранен
+        '200':
+          description: "Информация о текущем пользователе обновлена"
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  route_id:
-                    type: integer
+                $ref: '#/components/schemas/UpdateUserResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                invalid_user_id:
+                  value: { error: "invalid user id" }
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth:
+                  value: { error: "Authorization header required" }
+        '404':
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value: { error: "user not found" }
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                get:
+                  value: { error: "failed to get user" }
+                update:
+                  value: { error: "failed to update user" }
 
-  /routes/{id}:
-    delete:
-      tags: [Routes]
-      summary: Удалить маршрут
+  /api/users/me/picture:
+    post:
+      tags: [ Users ]
+      summary: Обновить фотографию текущего пользователя
       security:
-        - BearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
+        - BearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserPictureRequest'
       responses:
         '200':
-          description: Успешно удалено
+          description: "Фотография текущего пользователе обновлена"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateUserPictureResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                invalid_user_id:
+                  value: { error: "invalid user id" }
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth:
+                  value: { error: "Authorization header required" }
         '404':
-          description: Маршрут не найден
+          description: Пользователь не найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value: { error: "user not found" }
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                get:
+                  value: { error: "failed to get user"}
+                update_picture:
+                  value: { error: "failed to update user's picture"}
+
+  # ==========================
+  #  # МАРШРУТЫ
+  #  # ==========================
+  /api/routes/calculate:
+    post:
+      tags: [ Routes ]
+      summary: Получить готовый маршрут
+      security:
+        - BearerAuth: [ ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteRequest'
+      responses:
+        '200':
+          description: "Информация о маршруте"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                invalid_user_id:
+                  value: { error: "invalid user id" }
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth:
+                  value: { error: "Authorization header required" }
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                ors:
+                  value: { error: "failed to calculate route" }

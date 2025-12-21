@@ -1,6 +1,7 @@
-package http
+package http_test
 
 import (
+	adapterhttp "YouSightSeeing/backend/internal/adapter/in/http"
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/app/usecase/mocks"
@@ -168,7 +169,7 @@ func TestAH_GoogleAuth(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
 
-			handler := NewAuthHandler(
+			handler := adapterhttp.NewAuthHandler(
 				logger,
 				mockGoogleAuthUC,
 				mockRefreshTokenUC,
@@ -326,7 +327,7 @@ func TestAH_RefreshToken(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
 
-			handler := NewAuthHandler(
+			handler := adapterhttp.NewAuthHandler(
 				logger,
 				mockGoogleAuthUC,
 				mockRefreshTokenUC,
@@ -447,7 +448,7 @@ func TestAH_Logout(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
 
-			handler := NewAuthHandler(
+			handler := adapterhttp.NewAuthHandler(
 				logger,
 				mockGoogleAuthUC,
 				mockRefreshTokenUC,

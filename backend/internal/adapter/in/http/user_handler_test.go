@@ -1,6 +1,7 @@
-package http
+package http_test
 
 import (
+	adapterhttp "YouSightSeeing/backend/internal/adapter/in/http"
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/app/usecase/mocks"
@@ -142,7 +143,7 @@ func TestUH_GetMe(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
 
-			handler := NewUserHandler(
+			handler := adapterhttp.NewUserHandler(
 				logger,
 				mockGetUserUC,
 				mockUpdateUserUC,
@@ -331,7 +332,7 @@ func TestUH_UpdateMe(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
 
-			handler := NewUserHandler(
+			handler := adapterhttp.NewUserHandler(
 				logger,
 				mockGetUserUC,
 				mockUpdateUserUC,
@@ -503,7 +504,7 @@ func TestUH_UpdateMePicture(t *testing.T) {
 			var logBuffer bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logBuffer, nil))
 
-			handler := NewUserHandler(
+			handler := adapterhttp.NewUserHandler(
 				logger,
 				mockGetUserUC,
 				mockUpdateUserUC,

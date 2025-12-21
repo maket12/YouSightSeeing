@@ -1,8 +1,9 @@
-package usecase
+package usecase_test
 
 import (
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port/mocks"
 	"context"
@@ -15,125 +16,125 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type UpdateUserPictureTestCase struct {
-	Name  string
-	Input dto.UpdateUserPictureRequest
+func TestUpdatePictureUserUC(t *testing.T) {
+	type UpdateUserPictureTestCase struct {
+		Name  string
+		Input dto.UpdateUserPictureRequest
 
-	ExpectGet bool
-	GetOut    *entity.User
-	GetErr    error
+		ExpectGet bool
+		GetOut    *entity.User
+		GetErr    error
 
-	ExpectUpdate bool
-	UpdateErr    error
+		ExpectUpdate bool
+		UpdateErr    error
 
-	WantResp dto.UpdateUserPictureResponse
-	WantErr  error
-}
+		WantResp dto.UpdateUserPictureResponse
+		WantErr  error
+	}
 
-var (
-	testUpdatePictureUID     = uuid.New()
-	testUpdatePicturePicture = "my-photo.jpg"
-)
+	var (
+		testUpdatePictureUID     = uuid.New()
+		testUpdatePicturePicture = "my-photo.jpg"
+	)
 
-var UpdateUserPictureTestCases = []UpdateUserPictureTestCase{
-	{
-		Name: "invalid user id",
-		Input: dto.UpdateUserPictureRequest{
-			ID: uuid.Nil,
+	var UpdateUserPictureTestCases = []UpdateUserPictureTestCase{
+		{
+			Name: "invalid user id",
+			Input: dto.UpdateUserPictureRequest{
+				ID: uuid.Nil,
+			},
+
+			ExpectGet:    false,
+			ExpectUpdate: false,
+
+			WantErr: uc_errors.InvalidUserID,
 		},
 
-		ExpectGet:    false,
-		ExpectUpdate: false,
+		{
+			Name: "get: user not found",
+			Input: dto.UpdateUserPictureRequest{
+				ID:      testUpdatePictureUID,
+				Picture: testUpdatePicturePicture,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: false,
+			GetErr:       sql.ErrNoRows,
+			WantErr:      uc_errors.UserNotFoundError,
+		},
 
-		WantErr: uc_errors.InvalidUserID,
-	},
+		{
+			Name: "get: repository error",
+			Input: dto.UpdateUserPictureRequest{
+				ID:      testUpdatePictureUID,
+				Picture: testUpdatePicturePicture,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: false,
+			GetErr:       errors.New("db error"),
+			WantErr:      uc_errors.GetUserError,
+		},
 
-	{
-		Name: "get: user not found",
-		Input: dto.UpdateUserPictureRequest{
-			ID:      testUpdatePictureUID,
-			Picture: testUpdatePicturePicture,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: false,
-		GetErr:       sql.ErrNoRows,
-		WantErr:      sql.ErrNoRows,
-	},
-
-	{
-		Name: "get: repository error",
-		Input: dto.UpdateUserPictureRequest{
-			ID:      testUpdatePictureUID,
-			Picture: testUpdatePicturePicture,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: false,
-		GetErr:       errors.New("db error"),
-		WantErr:      uc_errors.GetUserError,
-	},
-
-	{
-		Name: "update: user not found",
-		Input: dto.UpdateUserPictureRequest{
-			ID:      testUpdatePictureUID,
-			Picture: testUpdatePicturePicture,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: true,
-		GetErr:       nil,
-		GetOut: &entity.User{
-			ID:      testUpdatePictureUID,
-			Picture: &testUpdatePicturePicture,
-		},
-		UpdateErr: sql.ErrNoRows,
-		WantErr:   sql.ErrNoRows,
-	},
-
-	{
-		Name: "update: repository error",
-		Input: dto.UpdateUserPictureRequest{
-			ID:      testUpdatePictureUID,
-			Picture: testUpdatePicturePicture,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: true,
-		GetErr:       nil,
-		GetOut: &entity.User{
-			ID:      testUpdatePictureUID,
-			Picture: &testUpdatePicturePicture,
-		},
-		UpdateErr: errors.New("db error"),
-		WantErr:   uc_errors.UpdateUserPictureError,
-	},
-
-	{
-		Name: "success",
-		Input: dto.UpdateUserPictureRequest{
-			ID:      testUpdatePictureUID,
-			Picture: testUpdatePicturePicture,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: true,
-		GetOut: &entity.User{
-			ID:      testUpdatePictureUID,
-			Picture: &testUpdatePicturePicture,
-		},
-		WantResp: dto.UpdateUserPictureResponse{
-			ID:      testUpdatePictureUID,
-			Updated: true,
-			User: dto.UserResponse{
+		{
+			Name: "update: user not found",
+			Input: dto.UpdateUserPictureRequest{
+				ID:      testUpdatePictureUID,
+				Picture: testUpdatePicturePicture,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: true,
+			GetErr:       nil,
+			GetOut: &entity.User{
 				ID:      testUpdatePictureUID,
 				Picture: &testUpdatePicturePicture,
 			},
+			UpdateErr: sql.ErrNoRows,
+			WantErr:   sql.ErrNoRows,
 		},
-	},
-}
 
-func TestUpdatePictureUserUC(t *testing.T) {
+		{
+			Name: "update: repository error",
+			Input: dto.UpdateUserPictureRequest{
+				ID:      testUpdatePictureUID,
+				Picture: testUpdatePicturePicture,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: true,
+			GetErr:       nil,
+			GetOut: &entity.User{
+				ID:      testUpdatePictureUID,
+				Picture: &testUpdatePicturePicture,
+			},
+			UpdateErr: errors.New("db error"),
+			WantErr:   uc_errors.UpdateUserPictureError,
+		},
+
+		{
+			Name: "success",
+			Input: dto.UpdateUserPictureRequest{
+				ID:      testUpdatePictureUID,
+				Picture: testUpdatePicturePicture,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: true,
+			GetOut: &entity.User{
+				ID:      testUpdatePictureUID,
+				Picture: &testUpdatePicturePicture,
+			},
+			WantResp: dto.UpdateUserPictureResponse{
+				ID:      testUpdatePictureUID,
+				Updated: true,
+				User: dto.UserResponse{
+					ID:      testUpdatePictureUID,
+					Picture: &testUpdatePicturePicture,
+				},
+			},
+		},
+	}
+
 	for _, tt := range UpdateUserPictureTestCases {
 		t.Run(tt.Name, func(t *testing.T) {
 			repo := new(mocks.UserRepository)
-			uc := NewUpdateUserPictureUC(repo)
+			uc := usecase.NewUpdateUserPictureUC(repo)
 
 			if tt.ExpectGet {
 				repo.On("GetByID", mock.Anything, mock.Anything).Return(tt.GetOut, tt.GetErr)

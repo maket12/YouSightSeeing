@@ -20,7 +20,8 @@ COPY --from=builder /app/yousightseeing .
 
 COPY migrations ./migrations
 
-COPY docs/openapi.yaml ./docs/openapi.yaml
+RUN mkdir -p ./docs
+COPY docs/ ./docs/
 
 ENV HTTP_ADDRESS=:8080
 
