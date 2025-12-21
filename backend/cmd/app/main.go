@@ -6,6 +6,7 @@ import (
 	adapterhttp "YouSightSeeing/backend/internal/adapter/in/http"
 	adapterdb "YouSightSeeing/backend/internal/adapter/out/db"
 	adaptertg "YouSightSeeing/backend/internal/adapter/out/jwt"
+	adapterors "YouSightSeeing/backend/internal/adapter/out/ors"
 	"YouSightSeeing/backend/internal/app/usecase"
 	"context"
 	"errors"
@@ -16,8 +17,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	echoswagger "github.com/swaggo/echo-swagger"
 )
 
 func parseLogLevel(level string) slog.Level {
@@ -73,6 +72,7 @@ func main() {
 		cfg.AccessDuration,
 		cfg.RefreshDuration,
 	)
+	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
 
 	// ======================
 	// 5. Usecases
@@ -91,6 +91,7 @@ func main() {
 	getUserUC := usecase.NewGetUserUC(usersRepo)
 	updateUserUC := usecase.NewUpdateUserUC(usersRepo)
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
+	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -103,6 +104,7 @@ func main() {
 		logger, getUserUC,
 		updateUserUC, updateUserPicUC,
 	)
+	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC)
 
 	// ======================
 	// 7. Router
@@ -111,20 +113,18 @@ func main() {
 		tokensGeneratorRepo,
 		authHandler,
 		userHandler,
+		routeHandler,
 	).InitRoutes()
 
-	router.File("/openapi.yaml", "./docs/openapi.yaml")
-	router.GET("/swagger/*any", echoswagger.WrapHandler)
-
 	// ======================
-	// 7. Router config
+	// 8. Router config
 	// ======================
 	router.Server.ReadTimeout = 5 * time.Second
 	router.Server.WriteTimeout = 10 * time.Second
 	router.Server.IdleTimeout = 60 * time.Second
 
 	// ======================
-	// 8. Run HTTP server
+	// 9. Run HTTP server
 	// ======================
 
 	srv := &http.Server{

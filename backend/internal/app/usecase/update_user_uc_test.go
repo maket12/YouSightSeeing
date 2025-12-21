@@ -1,8 +1,9 @@
-package usecase
+package usecase_test
 
 import (
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/app/usecase"
 	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port/mocks"
 	"context"
@@ -15,150 +16,150 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type UpdateUserTestCase struct {
-	Name  string
-	Input dto.UpdateUserRequest
+func TestUpdateUserUC(t *testing.T) {
+	type UpdateUserTestCase struct {
+		Name  string
+		Input dto.UpdateUserRequest
 
-	ExpectGet bool
-	GetOut    *entity.User
-	GetErr    error
+		ExpectGet bool
+		GetOut    *entity.User
+		GetErr    error
 
-	ExpectUpdate bool
-	UpdateErr    error
+		ExpectUpdate bool
+		UpdateErr    error
 
-	WantResp dto.UpdateUserResponse
-	WantErr  error
-}
+		WantResp dto.UpdateUserResponse
+		WantErr  error
+	}
 
-var (
-	testUpdateUID       = uuid.New()
-	testUpdateEmail     = "new123@gmail.com"
-	testUpdateFName     = "Vladimir Ziabkin"
-	testUpdatePicture   = "newp123.jpg"
-	testUpdateFirstName = "Vladimir"
-	testUpdateLastName  = "Ziabkin"
-)
+	var (
+		testUpdateUID       = uuid.New()
+		testUpdateEmail     = "new123@gmail.com"
+		testUpdateFName     = "Vladimir Ziabkin"
+		testUpdatePicture   = "newp123.jpg"
+		testUpdateFirstName = "Vladimir"
+		testUpdateLastName  = "Ziabkin"
+	)
 
-var UpdateUserTestCases = []UpdateUserTestCase{
-	{
-		Name: "invalid user id",
-		Input: dto.UpdateUserRequest{
-			ID: uuid.Nil,
+	var UpdateUserTestCases = []UpdateUserTestCase{
+		{
+			Name: "invalid user id",
+			Input: dto.UpdateUserRequest{
+				ID: uuid.Nil,
+			},
+
+			ExpectGet:    false,
+			ExpectUpdate: false,
+
+			WantErr: uc_errors.InvalidUserID,
 		},
 
-		ExpectGet:    false,
-		ExpectUpdate: false,
+		{
+			Name: "nothing to update",
+			Input: dto.UpdateUserRequest{
+				ID: testUpdateUID,
+			},
+			ExpectGet:    false,
+			ExpectUpdate: false,
+			WantResp: dto.UpdateUserResponse{
+				ID:      testUpdateUID,
+				Updated: false,
+			},
+			WantErr: nil,
+		},
 
-		WantErr: uc_errors.InvalidUserID,
-	},
+		{
+			Name: "get: user not found",
+			Input: dto.UpdateUserRequest{
+				ID:    testUpdateUID,
+				Email: &testUpdateEmail,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: false,
+			GetErr:       sql.ErrNoRows,
+			WantErr:      uc_errors.UserNotFoundError,
+		},
 
-	{
-		Name: "nothing to update",
-		Input: dto.UpdateUserRequest{
-			ID: testUpdateUID,
+		{
+			Name: "get: repository error",
+			Input: dto.UpdateUserRequest{
+				ID:    testUpdateUID,
+				Email: &testUpdateEmail,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: false,
+			GetErr:       errors.New("db error"),
+			WantErr:      uc_errors.GetUserError,
 		},
-		ExpectGet:    false,
-		ExpectUpdate: false,
-		WantResp: dto.UpdateUserResponse{
-			ID:      testUpdateUID,
-			Updated: false,
-		},
-		WantErr: nil,
-	},
 
-	{
-		Name: "get: user not found",
-		Input: dto.UpdateUserRequest{
-			ID:    testUpdateUID,
-			Email: &testUpdateEmail,
+		{
+			Name: "update: user not found",
+			Input: dto.UpdateUserRequest{
+				ID:    testUpdateUID,
+				Email: &testUpdateEmail,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: true,
+			GetErr:       nil,
+			GetOut: &entity.User{
+				ID:    testUpdateUID,
+				Email: testUpdateEmail,
+			},
+			UpdateErr: sql.ErrNoRows,
+			WantErr:   uc_errors.UserNotFoundError,
 		},
-		ExpectGet:    true,
-		ExpectUpdate: false,
-		GetErr:       sql.ErrNoRows,
-		WantErr:      sql.ErrNoRows,
-	},
 
-	{
-		Name: "get: repository error",
-		Input: dto.UpdateUserRequest{
-			ID:    testUpdateUID,
-			Email: &testUpdateEmail,
+		{
+			Name: "update: repository error",
+			Input: dto.UpdateUserRequest{
+				ID:    testUpdateUID,
+				Email: &testUpdateEmail,
+			},
+			ExpectGet:    true,
+			ExpectUpdate: true,
+			GetErr:       nil,
+			GetOut: &entity.User{
+				ID:    testUpdateUID,
+				Email: testUpdateEmail,
+			},
+			UpdateErr: errors.New("db error"),
+			WantErr:   uc_errors.UpdateUserError,
 		},
-		ExpectGet:    true,
-		ExpectUpdate: false,
-		GetErr:       errors.New("db error"),
-		WantErr:      uc_errors.GetUserError,
-	},
 
-	{
-		Name: "update: user not found",
-		Input: dto.UpdateUserRequest{
-			ID:    testUpdateUID,
-			Email: &testUpdateEmail,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: true,
-		GetErr:       nil,
-		GetOut: &entity.User{
-			ID:    testUpdateUID,
-			Email: testUpdateEmail,
-		},
-		UpdateErr: sql.ErrNoRows,
-		WantErr:   sql.ErrNoRows,
-	},
-
-	{
-		Name: "update: repository error",
-		Input: dto.UpdateUserRequest{
-			ID:    testUpdateUID,
-			Email: &testUpdateEmail,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: true,
-		GetErr:       nil,
-		GetOut: &entity.User{
-			ID:    testUpdateUID,
-			Email: testUpdateEmail,
-		},
-		UpdateErr: errors.New("db error"),
-		WantErr:   uc_errors.UpdateUserError,
-	},
-
-	{
-		Name: "success",
-		Input: dto.UpdateUserRequest{
-			ID:        testUpdateUID,
-			Email:     &testUpdateEmail,
-			FullName:  &testUpdateFName,
-			Picture:   &testUpdatePicture,
-			FirstName: &testUpdateFirstName,
-			LastName:  &testUpdateLastName,
-		},
-		ExpectGet:    true,
-		ExpectUpdate: true,
-		GetOut: &entity.User{
-			ID: testUpdateUID,
-		},
-		WantResp: dto.UpdateUserResponse{
-			ID:      testUpdateUID,
-			Updated: true,
-			User: dto.UserResponse{
+		{
+			Name: "success",
+			Input: dto.UpdateUserRequest{
 				ID:        testUpdateUID,
-				Email:     testUpdateEmail,
+				Email:     &testUpdateEmail,
 				FullName:  &testUpdateFName,
 				Picture:   &testUpdatePicture,
 				FirstName: &testUpdateFirstName,
 				LastName:  &testUpdateLastName,
 			},
+			ExpectGet:    true,
+			ExpectUpdate: true,
+			GetOut: &entity.User{
+				ID: testUpdateUID,
+			},
+			WantResp: dto.UpdateUserResponse{
+				ID:      testUpdateUID,
+				Updated: true,
+				User: dto.UserResponse{
+					ID:        testUpdateUID,
+					Email:     testUpdateEmail,
+					FullName:  &testUpdateFName,
+					Picture:   &testUpdatePicture,
+					FirstName: &testUpdateFirstName,
+					LastName:  &testUpdateLastName,
+				},
+			},
 		},
-	},
-}
+	}
 
-func TestUpdateUserUC(t *testing.T) {
 	for _, tt := range UpdateUserTestCases {
 		t.Run(tt.Name, func(t *testing.T) {
 			repo := new(mocks.UserRepository)
-			uc := NewUpdateUserUC(repo)
+			uc := usecase.NewUpdateUserUC(repo)
 
 			if tt.ExpectGet {
 				repo.On("GetByID", mock.Anything, mock.Anything).Return(tt.GetOut, tt.GetErr)

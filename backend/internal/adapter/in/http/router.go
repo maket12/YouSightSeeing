@@ -8,19 +8,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/swaggest/swgui/v5emb"
 )
 
 type Router struct {
 	JWTGen port.TokensGenerator
 	Auth   *AuthHandler
 	Users  *UserHandler
+	Route  *RouteHandler
 }
 
-func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler) *Router {
+func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler) *Router {
 	return &Router{
 		JWTGen: jwtGen,
 		Auth:   auth,
 		Users:  users,
+		Route:  route,
 	}
 }
 
@@ -49,8 +52,19 @@ func (r *Router) InitRoutes() *echo.Echo {
 			users.PATCH("/me", r.Users.UpdateMe)
 			users.PUT("/me/picture", r.Users.UpdateMePicture)
 		}
+		routesGroup := privateApi.Group("/routes")
+		{
+			routesGroup.POST("/calculate", r.Route.CalculateRoute)
+		}
 	}
 
+	router.GET("/openapi.yaml", func(c echo.Context) error {
+		return c.File("docs/openapi.yaml")
+	})
+
+	router.GET("/swagger*", echo.WrapHandler(
+		v5emb.New("YouSightSeeing API", "/openapi.yaml", "/swagger/"),
+	))
 	return router
 }
 
