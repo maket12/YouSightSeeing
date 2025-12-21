@@ -1,4 +1,4 @@
-package com.example.yandexmapcitysearch;
+package api;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -27,6 +27,10 @@ public final class AuthApi {
             = MediaType.get("application/json; charset=utf-8");
     private static final OkHttpClient client = new OkHttpClient();
 
+    public interface GoogleAuthCallback {
+        void onSuccess(String access, String refresh);
+        void onError(String message);
+    }
     public interface RefreshCallback {
         void onSuccess(String newAccess, String newRefresh);
         void onError(String message);
@@ -37,11 +41,58 @@ public final class AuthApi {
         void onError(String message);
     }
 
-    /**
-     * POST /auth/refresh
-     * body: { "refresh_token": "<refresh>" }
-     * ответ (плоский): { "access_token": "...", "refresh_token": "...", "user": {...} }
-     */
+    /** POST /auth/google */
+    public static void googleAuth(String googleIdToken, GoogleAuthCallback cb) {
+        if (googleIdToken == null || googleIdToken.isEmpty()) {
+            cb.onError("Пустой Google токен");
+            return;
+        }
+
+        String url = ApiConfig.AUTH_GOOGLE;
+
+        JSONObject bodyJson = new JSONObject();
+        try {
+            bodyJson.put("google_token", googleIdToken);
+        } catch (JSONException e) {
+            cb.onError("Ошибка формирования запроса");
+            return;
+        }
+
+        RequestBody body = RequestBody.create(bodyJson.toString(), JSON);
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "auth/google failure", e);
+                cb.onError("Сервер недоступен: " + e.getMessage());
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                String respBody = response.body() != null ? response.body().string() : "";
+                if (!response.isSuccessful()) {
+                    cb.onError("Ошибка авторизации: " + response.code() + "\n" + respBody);
+                    return;
+                }
+
+                try {
+                    JSONObject json = new JSONObject(respBody);
+                    String access  = json.getString("access_token");
+                    String refresh = json.optString("refresh_token", null);
+                    cb.onSuccess(access, refresh);
+                } catch (JSONException e) {
+                    Log.e(TAG, "parse auth/google response error", e);
+                    cb.onError("Некорректный ответ сервера");
+                }
+            }
+        });
+    }
+
+    /** POST /auth/refresh */
     public static void refreshTokens(Context ctx, RefreshCallback cb) {
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String currentRefresh = prefs.getString("refresh_token", null);
@@ -51,7 +102,7 @@ public final class AuthApi {
             return;
         }
 
-        String url = "http://10.0.2.2:8080/auth/refresh";
+        String url = ApiConfig.AUTH_REFRESH;
 
         JSONObject bodyJson = new JSONObject();
         try {
@@ -91,7 +142,6 @@ public final class AuthApi {
                     SharedPreferences.Editor ed = prefs.edit()
                             .putString("access_token", newAccess);
 
-                    // если сервер не прислал новый refresh_token, оставляем старый
                     if (newRefresh != null && !newRefresh.isEmpty()) {
                         ed.putString("refresh_token", newRefresh);
                     }
@@ -106,10 +156,7 @@ public final class AuthApi {
         });
     }
 
-    /**
-    * POST /auth/logout
-    * body: { "refresh_token": "<refresh>" }
-    */
+    /** POST /auth/logout */
     public static void logout(Context ctx, LogoutCallback cb) {
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String refresh = prefs.getString("refresh_token", null);
@@ -120,7 +167,7 @@ public final class AuthApi {
             return;
         }
 
-        String url = "http://10.0.2.2:8080/auth/logout";
+        String url = ApiConfig.AUTH_LOGOUT;    // ← вместо хардкода
 
         JSONObject bodyJson = new JSONObject();
         try {
@@ -151,7 +198,6 @@ public final class AuthApi {
                     return;
                 }
 
-                // успех: чистим локальное хранилище
                 prefs.edit().clear().apply();
                 cb.onSuccess();
             }

@@ -51,6 +51,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private Button btnZoomIn;
     private Button btnZoomOut;
 
+    private Button btnProfile;
+
     // Yandex Search
     private SearchManager searchManager;
     private Session searchSession;
@@ -108,6 +110,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         btnSetPoints = findViewById(R.id.btnSetPoints);
         btnZoomIn = findViewById(R.id.btnZoomIn);
         btnZoomOut = findViewById(R.id.btnZoomOut);
+        btnProfile = findViewById(R.id.btnProfile);
 
         orsClient = new OpenRouteServiceClient();
 
@@ -180,6 +183,11 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     Toast.makeText(this, "Введите название города", Toast.LENGTH_SHORT).show();
                 }
             });
+        }
+
+        if (btnProfile != null) {
+            btnProfile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
         }
     }
 
@@ -282,21 +290,30 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         // Оптимизация порядка точек
         List<Point> optimizedPoints = RouteOptimizer.optimize(selectedPoints);
 
-        // Запрос маршрута через API
-        orsClient.getMultiPointRoute(optimizedPoints, new OpenRouteServiceClient.ORSCallback() {
-            @Override
-            public void onSuccess(List<Point> routeCoordinates) {
-                runOnUiThread(() -> displayRoute(routeCoordinates));
-            }
+        // Запрос маршрута через backend API
+        orsClient.getMultiPointRoute(
+                MainActivity.this,
+                optimizedPoints,
+                new OpenRouteServiceClient.ORSCallback() {
+                    @Override
+                    public void onSuccess(List<Point> routeCoordinates) {
+                        runOnUiThread(() -> displayRoute(routeCoordinates));
+                    }
 
-            @Override
-            public void onError(String errorMessage) {
-                runOnUiThread(() ->
-                        Toast.makeText(MainActivity.this, "Ошибка построения маршрута: " + errorMessage, Toast.LENGTH_LONG).show()
-                );
-            }
-        });
-    }
+                    @Override
+                    public void onError(String errorMessage) {
+                        runOnUiThread(() ->
+                                Toast.makeText(
+                                        MainActivity.this,
+                                        "Ошибка построения маршрута: " + errorMessage,
+                                        Toast.LENGTH_LONG
+                                ).show()
+                        );
+                    }
+                }
+        );
+    };
+
 
     /**
      * Отображение маршрута на карте

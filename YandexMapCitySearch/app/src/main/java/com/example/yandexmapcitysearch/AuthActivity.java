@@ -10,7 +10,7 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
@@ -20,35 +20,26 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import java.io.IOException;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
+import api.AuthApi;
 
 public class AuthActivity extends AppCompatActivity {
+
     private static final String TAG = "AuthActivity";
     private static final String PREFS_NAME = "auth_tokens";
+
     private GoogleSignInClient mGoogleSignInClient;
     private Button btnGoogleSignIn;
+
     private static Context appContext;
-    private final OkHttpClient httpClient = new OkHttpClient();
-    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     public static void initAppContext(Context context) {
         appContext = context.getApplicationContext();
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        appContext = getApplicationContext();
         setContentView(R.layout.activity_auth);
 
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -58,6 +49,7 @@ public class AuthActivity extends AppCompatActivity {
                 .build();
 
         mGoogleSignInClient = GoogleSignIn.getClient(this, gso);
+
         btnGoogleSignIn = findViewById(R.id.btnGoogleSignIn);
         btnGoogleSignIn.setOnClickListener(v -> signIn());
     }
@@ -83,7 +75,26 @@ public class AuthActivity extends AppCompatActivity {
                                     btnGoogleSignIn.setEnabled(true);
                                     return;
                                 }
-                                sendGoogleTokenToBackend(googleIdToken);
+
+                                AuthApi.googleAuth(googleIdToken, new AuthApi.GoogleAuthCallback() {
+                                    @Override
+                                    public void onSuccess(String access, String refresh) {
+                                        runOnUiThread(() -> {
+                                            saveTokensFromBackend(access, refresh);
+                                            Toast.makeText(AuthActivity.this, "Успешный вход", Toast.LENGTH_SHORT).show();
+                                            navigateToMain();
+                                        });
+                                    }
+
+                                    @Override
+                                    public void onError(String message) {
+                                        runOnUiThread(() -> {
+                                            Toast.makeText(AuthActivity.this, message, Toast.LENGTH_LONG).show();
+                                            btnGoogleSignIn.setEnabled(true);
+                                        });
+                                    }
+                                });
+
                             } catch (ApiException e) {
                                 Log.w(TAG, "Google sign in failed", e);
                                 Toast.makeText(this, "Ошибка входа: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -94,85 +105,15 @@ public class AuthActivity extends AppCompatActivity {
                         }
                     });
 
-    /**
-     * POST /auth/google
-     * body: { "google_token": "<google_token>" }
-     * ожидаем в ответе JSON с access_token и refresh_token
-     */
-    private void sendGoogleTokenToBackend(String googleIdToken) {
-        String url = "http://10.0.2.2:8080/auth/google";
-
-        JSONObject json = new JSONObject();
-        try {
-            json.put("google_token", googleIdToken);
-        } catch (JSONException e) {
-            Toast.makeText(this, "Ошибка подготовки запроса", Toast.LENGTH_SHORT).show();
-            btnGoogleSignIn.setEnabled(true);
-            return;
-        }
-
-        RequestBody body = RequestBody.create(json.toString(), JSON);
-        Request request = new Request.Builder()
-                .url(url)
-                .post(body)
-                .build();
-
-        httpClient.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                runOnUiThread(() -> {
-                    Log.e(TAG, "auth/google failure", e);
-                    Toast.makeText(AuthActivity.this,
-                            "Сервер недоступен: " + e.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                    btnGoogleSignIn.setEnabled(true);
-                });
-            }
-
-            @Override
-            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                String respBody = response.body() != null ? response.body().string() : "";
-                if (!response.isSuccessful()) {
-                    runOnUiThread(() -> {
-                        Toast.makeText(AuthActivity.this,
-                                "Ошибка авторизации: " + response.code() + "\n" + respBody,
-                                Toast.LENGTH_LONG).show();
-                        btnGoogleSignIn.setEnabled(true);
-                    });
-                    return;
-                }
-
-                try {
-                    JSONObject respJson = new JSONObject(respBody);
-
-                    // плоский ответ: access_token, refresh_token, user
-                    String access  = respJson.getString("access_token");
-                    String refresh = respJson.optString("refresh_token", null);
-
-                    saveTokensFromBackend(access, refresh);
-
-                    runOnUiThread(() -> {
-                        Toast.makeText(AuthActivity.this, "Успешный вход", Toast.LENGTH_SHORT).show();
-                        navigateToMain();
-                    });
-                } catch (JSONException e) {
-                    Log.e(TAG, "parse auth/google response error", e);
-                    runOnUiThread(() -> {
-                        Toast.makeText(AuthActivity.this,
-                                "Некорректный ответ сервера",
-                                Toast.LENGTH_LONG).show();
-                        btnGoogleSignIn.setEnabled(true);
-                    });
-                }
-            }
-        });
-    }
     private void saveTokensFromBackend(String accessToken, String refreshToken) {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        prefs.edit()
-                .putString("access_token", accessToken)
-                .putString("refresh_token", refreshToken)
-                .apply();
+        SharedPreferences.Editor ed = prefs.edit()
+                .putString("access_token", accessToken);
+
+        if (refreshToken != null && !refreshToken.isEmpty()) {
+            ed.putString("refresh_token", refreshToken);
+        }
+        ed.apply();
     }
 
     public static String getAccessToken() {
