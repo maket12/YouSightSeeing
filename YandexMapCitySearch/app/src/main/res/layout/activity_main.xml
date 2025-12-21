@@ -40,7 +40,18 @@
             android:layout_height="wrap_content"
             android:text="Установить"
             android:textSize="12sp"
+            android:padding="8dp"
+            android:layout_marginEnd="8dp" />
+
+        <!-- Кнопка профиля -->
+        <Button
+            android:id="@+id/btnProfile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Профиль"
+            android:textSize="12sp"
             android:padding="8dp" />
+
     </LinearLayout>
 
     <!-- Боковые кнопки зума справа -->
@@ -49,10 +60,8 @@
         android:layout_height="wrap_content"
         android:layout_gravity="end|center_vertical"
         android:layout_marginEnd="16dp"
-        android:orientation="vertical"
-        android:spacing="12dp">
+        android:orientation="vertical">
 
-        <!-- Кнопка приближения (+) -->
         <Button
             android:id="@+id/btnZoomIn"
             android:layout_width="48dp"
@@ -65,7 +74,6 @@
             android:elevation="4dp"
             android:contentDescription="Приблизить карту" />
 
-        <!-- Кнопка отдаления (-) -->
         <Button
             android:id="@+id/btnZoomOut"
             android:layout_width="48dp"
