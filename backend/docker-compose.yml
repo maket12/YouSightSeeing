@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: yousightseeing_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: yousightseeing
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  migrate:
+    image: migrate/migrate
+    container_name: yousightseeing_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations
+    command:
+      [
+        "-path=/migrations",
+        "-database=postgres://postgres:postgres@db:5432/yousightseeing?sslmode=disable",
+        "up"
+      ]
+    restart: "on-failure"
+
+  api:
+    build: .
+    container_name: yousightseeing_api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_DSN: "user=postgres password=postgres host=db port=5432 dbname=yousightseeing sslmode=disable"
+      HTTP_ADDRESS: ":8080"
+      LOG_LEVEL: "DEBUG"
+      GOOGLE_CLIENT_ID: "https://724221636509-15a91ov9eb4r0biddvd8eh6ah0bl8u0e.apps.googleusercontent.com"
+      ACCESS_SECRET: "super-access-safe-secret-key"
+      ACCESS_DURATION: "15m"
+      REFRESH_SECRET: "super-refresh-safe-secret-key"
+      REFRESH_DURATION: "1h"
+      ORS_API_KEY: "ors-api-key"
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
