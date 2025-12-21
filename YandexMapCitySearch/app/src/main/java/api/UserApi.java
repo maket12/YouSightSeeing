@@ -70,7 +70,7 @@ public final class UserApi {
     }
 
     /**
-     * POST /api/users/me
+     * PATCH /api/users/me
      * body: UpdateUserRequest (любые поля: email, full_name, first_name, last_name, picture)
      */
     public static void updateMe(Context ctx, JSONObject updateBody, UserCallback cb) {
@@ -82,8 +82,8 @@ public final class UserApi {
 
         RequestBody body = RequestBody.create(updateBody.toString(), JSON);
         Request request = new Request.Builder()
-                .url(ApiConfig.USERS_ME)
-                .post(body)
+                .url(ApiConfig.USER_ME)          // /user/me
+                .patch(body)                     // PATCH
                 .addHeader("Authorization", "Bearer " + access)
                 .build();
 
@@ -132,8 +132,8 @@ public final class UserApi {
 
         RequestBody body = RequestBody.create(bodyJson.toString(), JSON);
         Request request = new Request.Builder()
-                .url(ApiConfig.USERS_ME_PICTURE)
-                .post(body)
+                .url(ApiConfig.USER_ME_PICTURE)  // /user/me/picture
+                .put(body)                       // PUT
                 .addHeader("Authorization", "Bearer " + access)
                 .build();
 
