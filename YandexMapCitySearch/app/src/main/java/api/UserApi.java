@@ -82,7 +82,7 @@ public final class UserApi {
 
         RequestBody body = RequestBody.create(updateBody.toString(), JSON);
         Request request = new Request.Builder()
-                .url(ApiConfig.USER_ME)          // /user/me
+                .url(ApiConfig.USERS_ME)         // /users/me
                 .patch(body)                     // PATCH
                 .addHeader("Authorization", "Bearer " + access)
                 .build();
@@ -132,7 +132,7 @@ public final class UserApi {
 
         RequestBody body = RequestBody.create(bodyJson.toString(), JSON);
         Request request = new Request.Builder()
-                .url(ApiConfig.USER_ME_PICTURE)  // /user/me/picture
+                .url(ApiConfig.USERS_ME_PICTURE)  // /user/me/picture
                 .put(body)                       // PUT
                 .addHeader("Authorization", "Bearer " + access)
                 .build();

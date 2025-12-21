@@ -56,6 +56,16 @@ public final class RouteApi {
             return;
         }
 
+        // оборачиваем логику в вспомогательный метод, чтобы можно было повторить запрос
+        performCalculateRoute(ctx, points, optimizeOrder, cb, false);
+    }
+
+    private static void performCalculateRoute(Context ctx,
+                                              List<Point> points,
+                                              boolean optimizeOrder,
+                                              RouteCallback cb,
+                                              boolean alreadyRetried) {
+
         String access = AuthActivity.getAccessToken();
         if (access == null) {
             cb.onError("Требуется авторизация");
@@ -97,6 +107,29 @@ public final class RouteApi {
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 String respBody = response.body() != null ? response.body().string() : "";
+
+                // если токен просрочен и ещё не пытались рефрешить
+                if (response.code() == 401
+                        && respBody.contains("token is expired")
+                        && !alreadyRetried) {
+
+                    Log.w(TAG, "Access token expired, trying to refresh");
+
+                    AuthApi.refreshTokens(ctx, new AuthApi.RefreshCallback() {
+                        @Override
+                        public void onSuccess(String newAccess, String newRefresh) {
+                            // после успешного refresh повторяем запрос маршрута
+                            performCalculateRoute(ctx, points, optimizeOrder, cb, true);
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            cb.onError("Сессия истекла, войдите заново: " + message);
+                        }
+                    });
+                    return;
+                }
+
                 if (!response.isSuccessful()) {
                     Log.e(TAG, "calculateRoute error " + response.code() + " " + respBody);
                     cb.onError("Ошибка маршрута: " + response.code() + "\n" + respBody);
