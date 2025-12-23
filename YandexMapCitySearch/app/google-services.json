@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "724221636509",
+    "project_id": "yousightseeing",
+    "storage_bucket": "yousightseeing.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:724221636509:android:78f8599250c43954e6c974",
+        "android_client_info": {
+          "package_name": "com.example.yandexmapcitysearch"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "724221636509-15a91ov9eb4r0biddvd8eh6ah0bl8u0e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdwEwFkyqP8-1rLe54MGMMitzRWLezFgc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "724221636509-15a91ov9eb4r0biddvd8eh6ah0bl8u0e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
