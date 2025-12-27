@@ -20,6 +20,8 @@ type Config struct {
 	RefreshDuration time.Duration `env:"REFRESH_DURATION" envDefault:"720h"`
 
 	ORSApiKey string `env:"ORS_API_KEY,required"`
+
+	GeoapifyAPIKey string `env:"GEOAPIFY_API_KEY,required"`
 }
 
 func Load() (*Config, error) {
