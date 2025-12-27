@@ -32,3 +32,7 @@ type UpdateUserPictureUseCase interface {
 type CalculateRouteUseCase interface {
 	Execute(ctx context.Context, req dto.CalculateRouteRequest) (dto.CalculateRouteResponse, error)
 }
+
+type SearchPlacesUseCase interface {
+	Execute(ctx context.Context, req dto.SearchPoiRequest) (dto.SearchPlacesResponse, error)
+}
