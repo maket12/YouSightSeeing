@@ -5,6 +5,7 @@ import (
 	adaptergv "YouSightSeeing/backend/internal/adapter/in/google"
 	adapterhttp "YouSightSeeing/backend/internal/adapter/in/http"
 	adapterdb "YouSightSeeing/backend/internal/adapter/out/db"
+	adaptergeo "YouSightSeeing/backend/internal/adapter/out/geopify"
 	adaptertg "YouSightSeeing/backend/internal/adapter/out/jwt"
 	adapterors "YouSightSeeing/backend/internal/adapter/out/ors"
 	"YouSightSeeing/backend/internal/app/usecase"
@@ -73,6 +74,7 @@ func main() {
 		cfg.RefreshDuration,
 	)
 	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
+	placesProvider := adaptergeo.NewPlacesService(cfg.GeoapifyAPIKey)
 
 	// ======================
 	// 5. Usecases
@@ -92,6 +94,7 @@ func main() {
 	updateUserUC := usecase.NewUpdateUserUC(usersRepo)
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
+	searchPlacesUC := usecase.NewSearchPlacesUC(placesProvider)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -105,6 +108,7 @@ func main() {
 		updateUserUC, updateUserPicUC,
 	)
 	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC)
+	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
 
 	// ======================
 	// 7. Router
@@ -114,6 +118,7 @@ func main() {
 		authHandler,
 		userHandler,
 		routeHandler,
+		placesHandler,
 	).InitRoutes()
 
 	// ======================
