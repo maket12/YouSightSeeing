@@ -11,6 +11,7 @@ public final class ApiConfig {
 
     // Маршруты
     public static final String ROUTES_CALCULATE  = BASE_URL + "/api/routes/calculate";
+    public static final String PLACES_SEARCH = BASE_URL + "/api/places/search";
 
     // Профиль
     public static final String USERS_ME          = BASE_URL + "/api/users/me";

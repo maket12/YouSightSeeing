@@ -1,14 +1,8 @@
 package com.example.yandexmapcitysearch;
 
-import android.text.TextUtils;
-import android.util.Log;
+import android.content.Context;
 import com.yandex.mapkit.geometry.Point;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import api.PlacesApi;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,8 +11,23 @@ import java.util.Map;
 import java.util.Set;
 
 public class GeoapifyClient {
+    private final Context context;
 
-    private static final String GEOAPIFY_API_KEY = BuildConfig.GEOAPIFY_API_KEY;
+    // Маппинг русских категорий → Geoapify
+    private static final Map<String, String> CATEGORY_MAP = new HashMap<>();
+    static {
+        CATEGORY_MAP.put("Парки", "leisure.park");
+        CATEGORY_MAP.put("Досугиразвлечения", "tourism.attraction");
+        CATEGORY_MAP.put("Архитектура", "tourism.sights");
+        CATEGORY_MAP.put("Музеи", "tourism.museum");
+        CATEGORY_MAP.put("Кафе", "catering.cafe");
+        CATEGORY_MAP.put("Рестораны", "catering.restaurant");
+        CATEGORY_MAP.put("Необычные и скрытые уголки города", "tourism.sights");
+    }
+
+    public GeoapifyClient(Context context) {
+        this.context = context;
+    }
 
     public static class Place {
         public String name;
@@ -35,78 +44,46 @@ public class GeoapifyClient {
         void onError(String errorMessage);
     }
 
-    // Маппинг пользовательских категорий на Geoapify ключи
-    private static final Map<String, String> categoryMap = new HashMap<>();
-    static {
-        categoryMap.put("Парки", "tourism.park");
-        categoryMap.put("Архитектура", "tourism.architecture");
-        categoryMap.put("Музеи", "tourism.museum");
-        categoryMap.put("Кафе", "catering.cafe");
-        categoryMap.put("Рестораны", "catering.restaurant");
-        categoryMap.put("Необычные и скрытые уголки города", "tourism.attraction");
-        // Добавьте другие категории по вашему списку
-    }
-
-    public static Set<String> mapUserCategoriesToGeoapify(Set<String> userCategories) {
+    /**
+     * Преобразует пользовательские категории в Geoapify формат
+     */
+    private Set<String> mapUserCategories(Set<String> userCategories) {
         Set<String> geoapifyCategories = new HashSet<>();
         for (String userCat : userCategories) {
-            String geoCat = categoryMap.get(userCat);
+            String geoCat = CATEGORY_MAP.get(userCat);
             if (geoCat != null) {
                 geoapifyCategories.add(geoCat);
             }
         }
+        // Дефолтные категории, если пользовательские пустые
         if (geoapifyCategories.isEmpty()) {
-            geoapifyCategories.add("tourism.attraction"); // дефолтная
+            geoapifyCategories.add("tourism.attraction");
+            geoapifyCategories.add("leisure.park");
         }
         return geoapifyCategories;
     }
 
-    // Метод с передачей пользовательских категорий
-    public void getNearbyPlaces(double lat, double lon, Set<String> userCategories, GeoapifyCallback callback) {
-        new Thread(() -> {
-            try {
-                // Преобразуем пользовательские категории в Geoapify
-                Set<String> geoCategoriesSet = mapUserCategoriesToGeoapify(userCategories);
-                String categoriesParam = TextUtils.join(",", geoCategoriesSet);
+    public void getNearbyPlaces(double lat, double lon, Set<String> categories, GeoapifyCallback callback) {
+        // Маппинг категорий!
+        Set<String> geoapifyCategories = mapUserCategories(categories);
 
-                String urlStr = String.format(
-                        "https://api.geoapify.com/v2/places?categories=%s&filter=circle:%.6f,%.6f,1000&limit=5&apiKey=%s",
-                        categoriesParam, lon, lat, GEOAPIFY_API_KEY
-                );
+        PlacesApi.searchAround(context, lat, lon, 5000, geoapifyCategories, 20,
+                new PlacesApi.PlacesCallback() {
+                    @Override
+                    public void onSuccess(List<PlacesApi.Place> placesApi) {
+                        List<GeoapifyClient.Place> geoPlaces = new ArrayList<>();
+                        for (PlacesApi.Place p : placesApi) {
+                            Point point = new Point(p.lat, p.lon);
+                            geoPlaces.add(new GeoapifyClient.Place(p.name, point));
+                        }
+                        callback.onSuccess(geoPlaces);
+                    }
 
-                URL url = new URL(urlStr);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
-
-                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    response.append(line);
+                    @Override
+                    public void onError(String message) {
+                        callback.onError(message);
+                    }
                 }
-                br.close();
-
-                JSONObject jsonResponse = new JSONObject(response.toString());
-                JSONArray features = jsonResponse.getJSONArray("features");
-
-                List<Place> places = new ArrayList<>();
-                for (int i = 0; i < features.length(); i++) {
-                    JSONObject feature = features.getJSONObject(i);
-                    String name = feature.getJSONObject("properties").optString("name", "Без названия");
-                    JSONArray coords = feature.getJSONObject("geometry").getJSONArray("coordinates");
-                    double lon_ = coords.getDouble(0);
-                    double lat_ = coords.getDouble(1);
-                    places.add(new Place(name, new Point(lat_, lon_)));
-                }
-
-                callback.onSuccess(places);
-
-            } catch (Exception e) {
-                Log.e("Geoapify", "Ошибка: " + e.getMessage());
-                callback.onError(e.getMessage());
-            }
-        }).start();
+        );
     }
 }

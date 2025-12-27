@@ -7,8 +7,12 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
-
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 
 import model.Route;
 import utils.RouteOptimizer;
@@ -46,8 +50,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private MapView mapView;
     private EditText editCity;
     private Button btnSearch;
-    private EditText editPointsCount;
-    private Button btnSetPoints;
+    private Button btnBuildRoute;
     private Button btnZoomIn;
     private Button btnZoomOut;
 
@@ -60,24 +63,36 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     // Маршрут
     private OpenRouteServiceClient orsClient;
     private Route currentRoute;
-    private int maxPoints = 2;
+    private Point startPoint;
     private int currentPointIndex = 0;
+    private boolean routeMode = false;
+    private boolean poiMode = false;
     private List<Point> selectedPoints = new ArrayList<>();
     private List<PlacemarkMapObject> pointMarkers = new ArrayList<>();
+    private List<PlacemarkMapObject> poiMarkers = new ArrayList<>();
     private PolylineMapObject routeLine;
 
     // Map input
     private InputListener mapInputListener;
+
+    // Геопозиция
+    private static final int REQ_LOCATION = 1001;
+    private FusedLocationProviderClient fusedClient;
+    private Point userLocation;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        fusedClient = LocationServices.getFusedLocationProviderClient(this);
+        requestLocationPermissionAndLoad();
+
         initializeMapKit();
         initializeUI();
         initializeSearch();
     }
+
 
 
     /**
@@ -106,11 +121,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         mapView = findViewById(R.id.mapView);
         editCity = findViewById(R.id.editCity);
         btnSearch = findViewById(R.id.btnSearch);
-        editPointsCount = findViewById(R.id.editPointsCount);
-        btnSetPoints = findViewById(R.id.btnSetPoints);
         btnZoomIn = findViewById(R.id.btnZoomIn);
         btnZoomOut = findViewById(R.id.btnZoomOut);
         btnProfile = findViewById(R.id.btnProfile);
+        btnBuildRoute = findViewById(R.id.btnBuildRoute);
 
         orsClient = new OpenRouteServiceClient();
 
@@ -162,10 +176,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Настройка обработчиков кнопок
      */
     private void setupButtonListeners() {
-        if (btnSetPoints != null) {
-            btnSetPoints.setOnClickListener(v -> setPointsCount());
-        }
-
         if (btnZoomIn != null) {
             btnZoomIn.setOnClickListener(v -> zoomIn());
         }
@@ -189,6 +199,26 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             btnProfile.setOnClickListener(v ->
                     startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
         }
+
+        if (btnBuildRoute != null) {
+            btnBuildRoute.setOnClickListener(v -> {
+                if (!routeMode) {
+                    // ПЕРВЫЙ КЛИК: показать POI
+                    showCategoriesDialog();
+                } else if (currentRoute == null) {
+                    // РЕЖИМ POI: строим маршрут
+                    if (selectedPoints.size() < 2) {
+                        Toast.makeText(this, "Выберите минимум 2 места", Toast.LENGTH_SHORT).show();
+                    } else {
+                        buildOptimalRoute();
+                    }
+                } else {
+                    // МАРШРУТ ПОСТРОЕН: сбрасываем
+                    resetRoute();
+                    Toast.makeText(this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     /**
@@ -199,81 +229,238 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     }
 
     /**
-     * Установка количества точек маршрута
+     * Показывает диалог выбора категорий и запускает поиск POI.
      */
-    private void setPointsCount() {
-        String input = editPointsCount.getText().toString().trim();
-        if (input.isEmpty()) {
-            Toast.makeText(this, "Введите количество точек", Toast.LENGTH_SHORT).show();
+    private void showCategoriesDialog() {
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
+
+        if (userCategories.isEmpty()) {
+            Toast.makeText(this, "Выберите категории в профиле", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        try {
-            int points = Integer.parseInt(input);
-            if (points < 2 || points > 10) {
-                Toast.makeText(this, "Число должно быть от 2 до 10", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        if (userLocation != null) {
+            // Ищем вокруг пользователя
+            startPoint = userLocation;
+            Toast.makeText(this, "Ищем POI вокруг вас", Toast.LENGTH_SHORT).show();
+            searchNearbyPlaces(startPoint.getLatitude(), startPoint.getLongitude(), userCategories);
+            routeMode = true;
+            poiMode = true;
+            updateBuildRouteButton();
+        } else {
+            Toast.makeText(this, "Сначала выберите точку на карте", Toast.LENGTH_LONG).show();
+            poiMode = false;
+            routeMode = false;
+        }
+    }
 
-            maxPoints = points;
-            resetRoute();
-            Toast.makeText(this, "Выберите " + maxPoints + " точек на карте", Toast.LENGTH_LONG).show();
-        } catch (NumberFormatException e) {
-            Toast.makeText(this, "Некорректное число", Toast.LENGTH_SHORT).show();
+
+    /**
+     * Обновляет текст и состояние кнопки "Построить маршрут" в зависимости от текущего режима.
+     *
+     * В режиме поиска POI: показывает "Построить маршрут" (всегда активна).
+     * В режиме выбора точек: показывает счётчик выбранных ("Построить маршрут (3)")
+     * и активирует только при ≥2 точках.
+     */
+    private void updateBuildRouteButton() {
+        if (btnBuildRoute != null) {
+            if (routeMode) {
+                btnBuildRoute.setText("Построить маршрут (" + selectedPoints.size() + ")");
+                btnBuildRoute.setEnabled(selectedPoints.size() >= 2);
+            } else {
+                btnBuildRoute.setText("Построить маршрут");
+                btnBuildRoute.setEnabled(true);
+            }
         }
     }
 
     /**
+     * Ищет POI вокруг указанной точки по категориям пользователя.
+     */
+    private void searchNearbyPlaces(double lat, double lon, Set<String> categories) {
+        Toast.makeText(this, "Поиск достопримечательностей в радиусе 5км...", Toast.LENGTH_SHORT).show();
+
+        GeoapifyClient geoClient = new GeoapifyClient(this);
+        geoClient.getNearbyPlaces(lat, lon, categories, new GeoapifyClient.GeoapifyCallback() {
+            @Override
+            public void onSuccess(List<GeoapifyClient.Place> places) {
+                runOnUiThread(() -> displayNearbyPlaces(places));
+            }
+
+            @Override
+            public void onError(String errorMessage) {
+                runOnUiThread(() ->
+                        Toast.makeText(MainActivity.this, "Не найдено POI: " + errorMessage, Toast.LENGTH_LONG).show()
+                );
+            }
+        });
+    }
+
+
+    /**
+     * Отображает найденные POI на карте как кликабельные маркеры.
+     */
+    private void displayNearbyPlaces(List<GeoapifyClient.Place> places) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+        clearNearbyPlaces();
+
+        for (GeoapifyClient.Place place : places) {
+            if (place.location == null) continue;
+
+            PlacemarkMapObject marker = mapObjects.addPlacemark(place.location);
+            marker.setUserData(place);
+            poiMarkers.add(marker);
+
+            marker.setIcon(ImageProvider.fromResource(this, android.R.drawable.ic_menu_mylocation));
+        }
+
+        Toast.makeText(this, "Найдено " + places.size() + " мест. Тапните для добавления", Toast.LENGTH_LONG).show();
+        if (!places.isEmpty()) adjustCameraToPlaces(places);
+
+        poiMode = true;
+        routeMode = true;
+        updateBuildRouteButton();
+    }
+
+
+    /**
+     * Очищает только маркеры POI, оставляя маршрут и пользовательские точки.
+     */
+    private void clearNearbyPlaces() {
+        if (poiMarkers.isEmpty()) return;
+
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+        for (PlacemarkMapObject marker : poiMarkers) {
+            mapObjects.remove(marker);
+        }
+        poiMarkers.clear();
+    }
+
+
+    /**
+     * Добавляет POI в список точек маршрута.
+     */
+    private void addPlaceToRoute(GeoapifyClient.Place place) {
+        if (place.location != null) {
+            selectedPoints.add(place.location);
+
+            // Меняем иконку маркера на "выбранную"
+            highlightSelectedMarker(place);
+
+            // Обновляем кнопку с новым счётчиком
+            updateBuildRouteButton();
+
+            Toast.makeText(this, (place.name != null ? place.name : "Точка") +
+                            " добавлено (" + selectedPoints.size() + ")",
+                    Toast.LENGTH_SHORT).show();
+
+        }
+    }
+
+    /**
+     * Подсвечивает маркер выбранного POI (меняет иконку).
+     */
+    private void highlightSelectedMarker(GeoapifyClient.Place place) {
+        for (PlacemarkMapObject marker : poiMarkers) { // ← ИЗМЕНИ НА ЭТО
+            GeoapifyClient.Place markerPlace = (GeoapifyClient.Place) marker.getUserData();
+            if (markerPlace != null && markerPlace.location.equals(place.location)) {
+                marker.setIcon(ImageProvider.fromResource(this, android.R.drawable.btn_star));
+                return;
+            }
+        }
+    }
+
+    /**
+     * Подгоняет камеру под все найденные POI.
+     */
+    private void adjustCameraToPlaces(List<GeoapifyClient.Place> places) {
+        if (places.isEmpty() || mapView == null) return;
+
+        double minLat = Double.MAX_VALUE, maxLat = -Double.MAX_VALUE;
+        double minLon = Double.MAX_VALUE, maxLon = -Double.MAX_VALUE;
+
+        for (GeoapifyClient.Place place : places) {
+            if (place.location != null) {
+                minLat = Math.min(minLat, place.location.getLatitude());
+                maxLat = Math.max(maxLat, place.location.getLatitude());
+                minLon = Math.min(minLon, place.location.getLongitude());
+                maxLon = Math.max(maxLon, place.location.getLongitude());
+            }
+        }
+
+        double centerLat = (minLat + maxLat) / 2;
+        double centerLon = (minLon + maxLon) / 2;
+
+        mapView.getMapWindow().getMap().move(
+                new CameraPosition(new Point(centerLat, centerLon), 15f, 0.0f, 0.0f),
+                new Animation(Animation.Type.SMOOTH, 1f),
+                null
+        );
+    }
+
+    /**
      * Обработка нажатия на карту
-     * ВАШ КОД: интеграция с пользовательскими предпочтениями
      */
     private void handleMapTap(com.yandex.mapkit.map.Map map, Point point) {
-        MapObjectCollection mapObjects = map.getMapObjects();
+        if (!routeMode) return;
 
-        if (currentPointIndex < maxPoints) {
-            selectedPoints.add(point);
-            PlacemarkMapObject marker = mapObjects.addPlacemark(point);
-            pointMarkers.add(marker);
-            currentPointIndex++;
+        // Проверяем - попали ли в POI маркер? (в радиусе 50м)
+        PlacemarkMapObject tappedMarker = null;
+        GeoapifyClient.Place tappedPlace = null;
 
-            Toast.makeText(this, "Точка " + currentPointIndex + "/" + maxPoints + " добавлена", Toast.LENGTH_SHORT).show();
-
-            if (currentPointIndex == maxPoints) {
-                buildOptimalRoute();
+        for (PlacemarkMapObject marker : poiMarkers) {
+            GeoapifyClient.Place markerPlace = (GeoapifyClient.Place) marker.getUserData();
+            if (markerPlace != null && markerPlace.location != null) {
+                double distance = distanceBetween(point, markerPlace.location);
+                if (distance < 0.0005) { // ~50 метров
+                    tappedMarker = marker;
+                    tappedPlace = markerPlace;
+                    break;
+                }
             }
-        } else {
-            // После добавления всех точек, ищем достопримечательности (ВАШ КОД)
-            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-            Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
-
-            GeoapifyClient geoClient = new GeoapifyClient();
-            Log.d("PreferencesCheck", "Выбранные категории: " + userCategories.toString());
-
-            geoClient.getNearbyPlaces(
-                    point.getLatitude(),
-                    point.getLongitude(),
-                    userCategories,
-                    new GeoapifyClient.GeoapifyCallback() {
-                        @Override
-                        public void onSuccess(List<GeoapifyClient.Place> places) {
-                            runOnUiThread(() -> {
-                                if (!places.isEmpty()) {
-                                    Log.d("Geoapify", "Найдено " + places.size() + " достопримечательностей");
-                                }
-                            });
-                        }
-
-                        @Override
-                        public void onError(String errorMessage) {
-                            runOnUiThread(() ->
-                                    Log.e("Geoapify", "Ошибка поиска: " + errorMessage)
-                            );
-                        }
-                    });
-
-            resetRoute();
-            Toast.makeText(this, "Маршрут сброшен. Выберите " + maxPoints + " точек заново", Toast.LENGTH_SHORT).show();
         }
+
+        showAddPointDialog(tappedPlace, point);
+    }
+
+    /** Расстояние между двумя точками в градусах (~111м на градус) */
+    private double distanceBetween(Point p1, Point p2) {
+        double latDiff = Math.abs(p1.getLatitude() - p2.getLatitude());
+        double lonDiff = Math.abs(p1.getLongitude() - p2.getLongitude());
+        return Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
+    }
+
+
+    /**
+     * Показывает диалог добавления точки в маршрут для ЛЮБОГО тапа на карте.
+     *
+     * @param place POI объект (может быть null для обычной точки на карте)
+     * @param point координаты тапа на карте
+     */
+    private void showAddPointDialog(GeoapifyClient.Place place, Point point) {
+        String title = place != null ? (place.name != null ? place.name : "POI") : "Точка на карте";
+
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage("Добавить в маршрут?")
+                .setPositiveButton("Добавить", (dialog, which) -> {
+                    if (place != null) {
+                        addPlaceToRoute(place);
+                    } else {
+                        GeoapifyClient.Place pointPlace = new GeoapifyClient.Place(
+                                "Точка " + (selectedPoints.size() + 1), point
+                        );
+                        addPlaceToRoute(pointPlace);
+                    }
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
     }
 
     /**
@@ -297,7 +484,15 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 new OpenRouteServiceClient.ORSCallback() {
                     @Override
                     public void onSuccess(List<Point> routeCoordinates) {
-                        runOnUiThread(() -> displayRoute(routeCoordinates));
+                        runOnUiThread(() -> {
+                            displayRoute(routeCoordinates);
+
+                            // ИЗМЕНЕНИЕ КНОПКИ НА "Сбросить маршрут"
+                            if (btnBuildRoute != null) {
+                                btnBuildRoute.setText("Сбросить маршрут");
+                                btnBuildRoute.setEnabled(true);
+                            }
+                        });
                     }
 
                     @Override
@@ -312,7 +507,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     }
                 }
         );
-    };
+    }
+
 
 
     /**
@@ -344,14 +540,25 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void resetRoute() {
         if (mapView != null && mapView.getMapWindow() != null) {
             MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-            mapObjects.clear();
+            for (PlacemarkMapObject marker : pointMarkers) mapObjects.remove(marker);
+            for (PlacemarkMapObject marker : poiMarkers) mapObjects.remove(marker);
+            if (routeLine != null) {
+                mapObjects.remove(routeLine);
+                routeLine = null;
+            }
         }
+
         selectedPoints.clear();
         pointMarkers.clear();
-        currentPointIndex = 0;
-        routeLine = null;
+        poiMarkers.clear();
+        poiMode = false;
+        routeMode = false;
         currentRoute = null;
+        currentPointIndex = 0;
+
+        updateBuildRouteButton();
     }
+
 
     /**
      * Приближение карты
@@ -466,6 +673,76 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         } else {
             Log.e("MainActivity", "MapView is null during submitQuery");
             Toast.makeText(this, "Ошибка карты: MapView недоступен", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Запрашивает разрешение на геопозицию и загружает текущую локацию пользователя.
+     * Если разрешения нет — запрашивает их, иначе сразу получает координаты.
+     */
+    private void requestLocationPermissionAndLoad() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            // Нет разрешения — запрашиваем у пользователя
+            requestPermissions(
+                    new String[] {
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    REQ_LOCATION
+            );
+        } else {
+            // Разрешение есть — сразу получаем локацию
+            requestUserLocation();
+        }
+    }
+
+    /**
+     * Получает последнюю известную геопозицию пользователя и центрирует карту.
+     */
+    private void requestUserLocation() {
+        try {
+            fusedClient.getLastLocation()
+                    .addOnSuccessListener(location -> {
+                        if (location != null) {
+                            double lat = location.getLatitude();
+                            double lon = location.getLongitude();
+                            userLocation = new Point(lat, lon);
+
+                            if (mapView != null && mapView.getMapWindow() != null) {
+                                mapView.getMapWindow().getMap().move(
+                                        new CameraPosition(userLocation, 14f, 0.0f, 0.0f),
+                                        new Animation(Animation.Type.SMOOTH, 1f),
+                                        null
+                                );
+                            }
+                            Log.d("MainActivity", "User location: " + lat + "," + lon);
+                        } else {
+                            Log.d("MainActivity", "Last location is null, using default camera");
+                        }
+                    });
+        } catch (SecurityException e) {
+            // Разрешение отозвано или недоступно
+            Log.w("MainActivity", "Location permission denied", e);
+            Toast.makeText(this, "Геопозиция недоступна", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Обработчик результата запроса разрешений на геопозицию.
+     * При согласии — загружает локацию, при отказе — fallback на выбор точки тапом.
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_LOCATION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Пользователь дал разрешение — загружаем локацию
+                requestUserLocation();
+            } else {
+                // Отказ — пользователь сам выберет стартовую точку на карте
+                Toast.makeText(this, "Геопозиция отключена, выберите точку на карте", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
