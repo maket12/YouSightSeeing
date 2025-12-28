@@ -15,8 +15,6 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "MAPKIT_API_KEY", "\"${mapkitApiKey}\"")
-        buildConfigField("String", "GEOAPIFY_API_KEY", "\"${geoapifyApiKey}\"")
-        buildConfigField("String", "ORS_API_KEY", "\"${openrouteserviceApiKey}\"")
     }
 
     buildTypes {
