@@ -1,17 +1,16 @@
-package geoapify
+package gpf
 
 import (
 	"YouSightSeeing/backend/internal/domain/entity"
 	"context"
-	"fmt"
 	"os"
 	"testing"
 )
 
 func TestPlacesService_SearchPlaces_Integration(t *testing.T) {
-	apiKey := os.Getenv("GEOAPIFY_API_KEY")
+	apiKey := os.Getenv("GEOPIFY_API_KEY")
 	if apiKey == "" {
-		t.Skip("Skipping integration test: GEOAPIFY_API_KEY not set")
+		t.Skip("Skipping integration test: GEOPIFY_API_KEY not set")
 	}
 
 	service := NewPlacesService(apiKey)
@@ -24,9 +23,9 @@ func TestPlacesService_SearchPlaces_Integration(t *testing.T) {
 		Limit:      100,
 	}
 
-	places, err := service.SearchPlaces(context.Background(), filter)
+	places, err := service.Search(context.Background(), filter)
 	if err != nil {
-		t.Fatalf("SearchPlaces failed: %v", err)
+		t.Fatalf("Search failed: %v", err)
 	}
 
 	if len(places) == 0 {
@@ -34,6 +33,6 @@ func TestPlacesService_SearchPlaces_Integration(t *testing.T) {
 	}
 
 	for _, p := range places {
-		fmt.Printf("Found place: %s (%s)\n", p.Name, p.Address)
+		t.Logf("Found place: %s (%s)\n", p.Name, p.Address)
 	}
 }

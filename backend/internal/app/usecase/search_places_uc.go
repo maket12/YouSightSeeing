@@ -9,16 +9,16 @@ import (
 )
 
 type SearchPlacesUC struct {
-	PlacesProvider port.PlacesProvider
+	PlacesProvider port.PlacesService
 }
 
-func NewSearchPlacesUC(provider port.PlacesProvider) *SearchPlacesUC {
+func NewSearchPlacesUC(provider port.PlacesService) *SearchPlacesUC {
 	return &SearchPlacesUC{
 		PlacesProvider: provider,
 	}
 }
 
-func (uc *SearchPlacesUC) Execute(ctx context.Context, req dto.SearchPoiRequest) (dto.SearchPlacesResponse, error) {
+func (uc *SearchPlacesUC) Execute(ctx context.Context, req dto.SearchPlacesRequest) (dto.SearchPlacesResponse, error) {
 	if req.Lat == 0 || req.Lon == 0 {
 		return dto.SearchPlacesResponse{}, uc_errors.ErrInvalidCoordinates
 	}
@@ -37,14 +37,14 @@ func (uc *SearchPlacesUC) Execute(ctx context.Context, req dto.SearchPoiRequest)
 		Limit:      req.Limit,
 	}
 
-	places, err := uc.PlacesProvider.SearchPlaces(ctx, filter)
+	places, err := uc.PlacesProvider.Search(ctx, filter)
 	if err != nil {
 		return dto.SearchPlacesResponse{}, uc_errors.Wrap(uc_errors.ErrSearchPlacesFailed, err)
 	}
 
-	respPlaces := make([]dto.PlaceInfo, 0, len(places))
+	respPlaces := make([]dto.Place, 0, len(places))
 	for _, p := range places {
-		respPlaces = append(respPlaces, dto.PlaceInfo{
+		respPlaces = append(respPlaces, dto.Place{
 			Name:        p.Name,
 			Address:     p.Address,
 			Categories:  p.Categories,

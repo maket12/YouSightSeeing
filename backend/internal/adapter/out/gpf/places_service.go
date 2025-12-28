@@ -1,4 +1,4 @@
-package geoapify
+package gpf
 
 import (
 	"YouSightSeeing/backend/internal/domain/entity"
@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type geoapifyResponseRaw struct {
+type gpfResponseRaw struct {
 	Type     string `json:"type"`
 	Features []struct {
 		Type     string `json:"type"`
@@ -21,7 +21,7 @@ type geoapifyResponseRaw struct {
 		} `json:"geometry"`
 		Properties struct {
 			Name       string   `json:"name"`
-			Formatted  string   `json:"formatted"` //полный адрес одной строкой
+			Formatted  string   `json:"formatted"` // Полный адрес одной строкой
 			PlaceID    string   `json:"place_id"`
 			Categories []string `json:"categories"`
 		} `json:"properties"`
@@ -42,7 +42,7 @@ func NewPlacesService(apiKey string) *PlacesService {
 	}
 }
 
-func (s *PlacesService) SearchPlaces(ctx context.Context, filter entity.PlacesSearchFilter) ([]entity.Place, error) {
+func (s *PlacesService) Search(ctx context.Context, filter entity.PlacesSearchFilter) ([]entity.Place, error) {
 	params := url.Values{}
 	params.Add("apiKey", s.APIKey)
 
@@ -79,7 +79,7 @@ func (s *PlacesService) SearchPlaces(ctx context.Context, filter entity.PlacesSe
 		return nil, fmt.Errorf("geoapify api returned error status: %d", resp.StatusCode)
 	}
 
-	var raw geoapifyResponseRaw
+	var raw gpfResponseRaw
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return nil, fmt.Errorf("failed to decode geoapify response: %w", err)
 	}

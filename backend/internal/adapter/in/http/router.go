@@ -60,7 +60,7 @@ func (r *Router) InitRoutes() *echo.Echo {
 		}
 		placesGroup := privateApi.Group("/places")
 		{
-			placesGroup.POST("/search", r.Places.SearchPlaces)
+			placesGroup.POST("/search", r.Places.Search)
 		}
 	}
 
