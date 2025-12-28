@@ -5,6 +5,6 @@ import (
 	"context"
 )
 
-type PlacesProvider interface {
-	SearchPlaces(ctx context.Context, filter entity.PlacesSearchFilter) ([]entity.Place, error)
+type PlacesService interface {
+	Search(ctx context.Context, filter entity.PlacesSearchFilter) ([]entity.Place, error)
 }

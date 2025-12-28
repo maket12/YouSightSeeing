@@ -51,6 +51,7 @@ services:
       REFRESH_SECRET: "super-refresh-safe-secret-key"
       REFRESH_DURATION: "1h"
       ORS_API_KEY: "ors-api-key"
+      GEOPIFY_API_KEY: ""
     ports:
       - "8080:8080"
 

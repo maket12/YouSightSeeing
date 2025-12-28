@@ -11,25 +11,25 @@ import (
 
 type PlacesHandler struct {
 	log      *slog.Logger
-	SearchUC usecase.SearchPlacesUseCase
+	searchUC usecase.SearchPlacesUseCase
 }
 
-func NewPlacesHandler(log *slog.Logger, uc usecase.SearchPlacesUseCase) *PlacesHandler {
+func NewPlacesHandler(log *slog.Logger, searchUc usecase.SearchPlacesUseCase) *PlacesHandler {
 	return &PlacesHandler{
 		log:      log,
-		SearchUC: uc,
+		searchUC: searchUc,
 	}
 }
 
-func (h *PlacesHandler) SearchPlaces(c echo.Context) error {
-	var req dto.SearchPoiRequest
+func (h *PlacesHandler) Search(c echo.Context) error {
+	var req dto.SearchPlacesRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
 			"error": "invalid json",
 		})
 	}
 
-	resp, err := h.SearchUC.Execute(c.Request().Context(), req)
+	resp, err := h.searchUC.Execute(c.Request().Context(), req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
 		h.log.ErrorContext(c.Request().Context(), "failed to search places",

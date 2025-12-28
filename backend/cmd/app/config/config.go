@@ -21,7 +21,7 @@ type Config struct {
 
 	ORSApiKey string `env:"ORS_API_KEY,required"`
 
-	GeoapifyAPIKey string `env:"GEOAPIFY_API_KEY,required"`
+	GeopifyAPIKey string `env:"GEOPIFY_API_KEY,required"`
 }
 
 func Load() (*Config, error) {
