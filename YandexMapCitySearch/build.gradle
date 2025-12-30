@@ -1,0 +1,64 @@
+plugins {
+    id 'com.android.application' version '8.6.0' apply false
+    id 'com.google.gms.google-services' version '4.4.4' apply false
+}
+
+repositories {
+    mavenCentral()
+    google()
+}
+
+ext {
+    mapkitApiKey = getMapkitApiKey()
+    geoapifyApiKey = getGeoapifyApiKey()
+    openrouteserviceApiKey = getOpenRouteServiceApiKey()
+}
+
+private String getMapkitApiKey() {
+    def properties = new Properties()
+    def localPropertiesFile = file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withInputStream { properties.load(it) }
+        def apiKey = properties.getProperty("mapkit.api.key", "")
+        if (apiKey.isEmpty()) {
+            throw new GradleException("API key not found in local.properties. Please add 'mapkit.api.key=your_key'.")
+        }
+        return apiKey
+    } else {
+        throw new GradleException("local.properties file not found. Please create it and add 'mapkit.api.key=your_key'.")
+    }
+}
+
+private String getGeoapifyApiKey() {
+    def properties = new Properties()
+    def localPropertiesFile = file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withInputStream { properties.load(it) }
+        def apiKey = properties.getProperty("geoapify.api.key", "")
+        if (apiKey.isEmpty()) {
+            throw new GradleException("Geoapify API key not found in local.properties. Please add 'geoapify.api.key=your_key'.")
+        }
+        return apiKey
+    } else {
+        throw new GradleException("local.properties file not found. Please create it and add 'geoapify.api.key=your_key'.")
+    }
+}
+
+private String getOpenRouteServiceApiKey() {
+    def properties = new Properties()
+    def localPropertiesFile = file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.withInputStream { properties.load(it) }
+        def apiKey = properties.getProperty("ors.api.key", "")
+        if (apiKey.isEmpty()) {
+            throw new GradleException("OpenRouteService API key not found in local.properties. Please add 'openrouteservice.api.key=your_key'.")
+        }
+        return apiKey
+    } else {
+        throw new GradleException("local.properties file not found. Please create it and add 'openrouteservice.api.key=your_key'.")
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

@@ -1,0 +1,19 @@
+[versions]
+agp = "8.6.0"  # Должна совпадать с версией в build.gradle
+kotlin = "1.9.0"  # Должна совпадать
+yandex-mapkit = "4.66.0-full"
+play-services-appsearch = "16.0.1"
+firebase-firestore = "26.0.2"
+
+[plugins]
+# Опционально: Определения для alias (если хотите использовать в модулях)
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+
+[libraries]
+yandex-mapkit = { module = "com.yandex.android:maps.mobile", version = "4.66.0-full" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version = "1.6.1" }
+androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version = "2.1.4" }
+play-services-appsearch = { group = "com.google.android.gms", name = "play-services-appsearch", version.ref = "play-services-appsearch" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore", version.ref = "firebase-firestore" }
