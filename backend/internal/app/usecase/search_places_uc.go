@@ -20,7 +20,7 @@ func NewSearchPlacesUC(provider port.PlacesService) *SearchPlacesUC {
 }
 
 func (uc *SearchPlacesUC) Execute(ctx context.Context, req dto.SearchPlacesRequest) (dto.SearchPlacesResponse, error) {
-	if req.Lat == 0 || req.Lon == 0 {
+	if req.Lat < -90 || req.Lat > 90 || req.Lon < -180 || req.Lon > 180 {
 		return dto.SearchPlacesResponse{}, uc_errors.ErrInvalidCoordinates
 	}
 	if req.Radius <= 0 {
