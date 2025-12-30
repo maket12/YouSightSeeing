@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Основная тема приложения -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.DarkActionBar">
+        <item name="colorPrimary">#5EABB1</item>
+        <item name="colorPrimaryVariant">#3D8084</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#A8D5D8</item>
+        <item name="android:statusBarColor">#3D8084</item>
+    </style>
+
+    <!-- Тема для Splash Screen с кастомным фоном -->
+    <style name="SplashTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Используем наш drawable как windowBackground -->
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+    </style>
+</resources>

@@ -68,7 +68,7 @@ func (r *Router) InitRoutes() *echo.Echo {
 		return c.File("docs/openapi.yaml")
 	})
 
-	router.GET("/swagger/*", echo.WrapHandler(
+	router.GET("/swagger*", echo.WrapHandler(
 		v5emb.New("YouSightSeeing API", "/openapi.yaml", "/swagger/"),
 	))
 	return router
