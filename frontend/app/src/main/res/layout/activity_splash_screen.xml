@@ -1,0 +1,26 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF">
+
+    <!-- Текст (сразу виден, но под картинкой) -->
+    <TextView
+        android:id="@+id/appName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="YouSightSeeing"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textColor="#3E8C90"
+        android:layout_gravity="center"
+        android:paddingTop="200dp" /> <!-- сдвиг от верха, чтобы было красиво -->
+
+    <!-- Картинка накладывается сверху текста -->
+    <ImageView
+        android:id="@+id/logo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/icon"
+        android:scaleType="centerInside"
+        android:layout_gravity="center" />
+</FrameLayout>

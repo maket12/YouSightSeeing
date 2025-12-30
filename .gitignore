@@ -1,0 +1,13 @@
+# IDE
+.idea/
+*.iml
+
+# Backend (do not touch)
+backend/.env
+backend/.env.*
+backend/vendor/
+backend/tmp/
+
+frontend/.gradle
+frontend/app/build
+frontend/build
