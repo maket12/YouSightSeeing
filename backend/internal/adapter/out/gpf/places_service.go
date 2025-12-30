@@ -43,6 +43,24 @@ func NewPlacesService(apiKey string) *PlacesService {
 }
 
 func (s *PlacesService) Search(ctx context.Context, filter entity.PlacesSearchFilter) ([]entity.Place, error) {
+	params := s.buildParams(filter)
+	reqURL := s.buildRequestURL(params)
+
+	resp, err := s.doRequest(ctx, reqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	raw, err := s.decodeResponse(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.mapPlaces(raw), nil
+}
+
+func (s *PlacesService) buildParams(filter entity.PlacesSearchFilter) url.Values {
 	params := url.Values{}
 	params.Add("apiKey", s.APIKey)
 
@@ -50,59 +68,68 @@ func (s *PlacesService) Search(ctx context.Context, filter entity.PlacesSearchFi
 		params.Add("categories", strings.Join(filter.Categories, ","))
 	}
 
-	circleFilter := fmt.Sprintf("circle:%f,%f,%d", filter.Lon, filter.Lat, filter.Radius)
-	params.Add("filter", circleFilter)
-
-	bias := fmt.Sprintf("proximity:%f,%f", filter.Lon, filter.Lat)
-	params.Add("bias", bias)
+	params.Add("filter", fmt.Sprintf("circle:%f,%f,%d", filter.Lon, filter.Lat, filter.Radius))
+	params.Add("bias", fmt.Sprintf("proximity:%f,%f", filter.Lon, filter.Lat))
 
 	if filter.Limit > 0 {
 		params.Add("limit", fmt.Sprintf("%d", filter.Limit))
 	} else {
 		params.Add("limit", "20")
 	}
+	return params
+}
 
-	reqURL := fmt.Sprintf("%s?%s", s.BaseURL, params.Encode())
+func (s *PlacesService) buildRequestURL(params url.Values) string {
+	return fmt.Sprintf("%s?%s", s.BaseURL, params.Encode())
+}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+func (s *PlacesService) doRequest(ctx context.Context, reqURL string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-
 	resp, err := s.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("geoapify api request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	return resp, nil
+}
 
+func (s *PlacesService) decodeResponse(resp *http.Response) (gpfResponseRaw, error) {
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("geoapify api returned error status: %d", resp.StatusCode)
+		return gpfResponseRaw{}, fmt.Errorf("geoapify api returned error status: %d", resp.StatusCode)
 	}
-
 	var raw gpfResponseRaw
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("failed to decode geoapify response: %w", err)
+		return gpfResponseRaw{}, fmt.Errorf("failed to decode geoapify response: %w", err)
 	}
+	return raw, nil
+}
 
+func (s *PlacesService) mapPlaces(raw gpfResponseRaw) []entity.Place {
 	places := make([]entity.Place, 0, len(raw.Features))
-	for _, feature := range raw.Features {
-		name := feature.Properties.Name
-		if name == "" {
-			if feature.Properties.Formatted != "" {
-				name = feature.Properties.Formatted
-			} else {
-				continue
-			}
+	for _, f := range raw.Features {
+		name, ok := resolveName(f.Properties.Name, f.Properties.Formatted)
+		if !ok {
+			continue
 		}
-
 		places = append(places, entity.Place{
-			ID:          feature.Properties.PlaceID,
+			ID:          f.Properties.PlaceID,
 			Name:        name,
-			Address:     feature.Properties.Formatted,
-			Categories:  feature.Properties.Categories,
-			Coordinates: feature.Geometry.Coordinates,
+			Address:     f.Properties.Formatted,
+			Categories:  f.Properties.Categories,
+			Coordinates: f.Geometry.Coordinates,
 		})
 	}
+	return places
+}
 
-	return places, nil
+func resolveName(name, formatted string) (string, bool) {
+	if name != "" {
+		return name, true
+	}
+	if formatted != "" {
+		return formatted, true
+	}
+	return "", false
 }
