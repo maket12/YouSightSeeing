@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#FFFFFF"
+    android:padding="20dp">
+
+    <!-- Логотип -->
+    <ImageView
+        android:id="@+id/registerLogo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/icon"
+        android:scaleType="centerInside"
+        android:layout_marginBottom="40dp"/>
+
+    <!-- FrameLayout для фона и контента -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center">
+
+        <!-- Фон кнопки (обводка) -->
+        <ImageView
+            android:id="@+id/btnGoogleBg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/google_login_bg"
+            android:layout_gravity="center"/>
+
+        <!-- Контент на фоне (текст сверху, кнопка снизу) -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_gravity="center"
+            android:paddingVertical="20dp">
+
+            <!-- Текст сверху на фоне -->
+            <TextView
+                android:id="@+id/titleText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Путешествуй с нами"
+                android:textColor="#FFFFFF"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginBottom="20dp"/>
+
+            <!-- Кнопка Google снизу на фоне -->
+            <ImageButton
+                android:id="@+id/btnGoogleRegister"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@null"
+                android:src="@drawable/google_login"
+                android:contentDescription="google_sign_in"
+                android:scaleType="centerInside"/>
+
+        </LinearLayout>
+    </FrameLayout>
+
+</LinearLayout>
