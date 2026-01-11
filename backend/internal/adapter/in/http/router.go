@@ -12,18 +12,20 @@ import (
 )
 
 type Router struct {
-	JWTGen port.TokensGenerator
-	Auth   *AuthHandler
-	Users  *UserHandler
-	Route  *RouteHandler
+	jwtgen port.TokensGenerator
+	auth   *AuthHandler
+	user   *UserHandler
+	route  *RouteHandler
+	place  *PlacesHandler
 }
 
-func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler) *Router {
+func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler, places *PlacesHandler) *Router {
 	return &Router{
-		JWTGen: jwtGen,
-		Auth:   auth,
-		Users:  users,
-		Route:  route,
+		jwtgen: jwtGen,
+		auth:   auth,
+		user:   users,
+		route:  route,
+		place:  places,
 	}
 }
 
@@ -37,9 +39,9 @@ func (r *Router) InitRoutes() *echo.Echo {
 	{
 		authGroup := publicApi.Group("/auth")
 		{
-			authGroup.POST("/google", r.Auth.GoogleAuth)
-			authGroup.POST("/refresh", r.Auth.RefreshToken)
-			authGroup.POST("/logout", r.Auth.Logout)
+			authGroup.POST("/google", r.auth.GoogleAuth)
+			authGroup.POST("/refresh", r.auth.RefreshToken)
+			authGroup.POST("/logout", r.auth.Logout)
 		}
 	}
 
@@ -48,13 +50,17 @@ func (r *Router) InitRoutes() *echo.Echo {
 	{
 		users := privateApi.Group("/users")
 		{
-			users.GET("/me", r.Users.GetMe)
-			users.PATCH("/me", r.Users.UpdateMe)
-			users.PUT("/me/picture", r.Users.UpdateMePicture)
+			users.GET("/me", r.user.GetMe)
+			users.PATCH("/me", r.user.UpdateMe)
+			users.PUT("/me/picture", r.user.UpdateMePicture)
 		}
 		routesGroup := privateApi.Group("/routes")
 		{
-			routesGroup.POST("/calculate", r.Route.CalculateRoute)
+			routesGroup.GET("/calculate", r.route.CalculateRoute)
+		}
+		placesGroup := privateApi.Group("/places")
+		{
+			placesGroup.POST("/search", r.place.Search)
 		}
 	}
 
@@ -95,7 +101,7 @@ func (r *Router) AuthMiddleware() echo.MiddlewareFunc {
 
 			token := parts[1]
 
-			userID, err := r.JWTGen.ValidateAccessToken(c.Request().Context(), token)
+			userID, err := r.jwtgen.ValidateAccessToken(c.Request().Context(), token)
 			if err != nil {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 			}
