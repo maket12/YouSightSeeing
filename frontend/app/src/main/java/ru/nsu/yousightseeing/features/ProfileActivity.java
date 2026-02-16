@@ -1,4 +1,4 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -12,8 +12,9 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
 
-import api.AuthApi;
-import api.UserApi;
+import ru.nsu.yousightseeing.R;
+import ru.nsu.yousightseeing.api.AuthApi;
+import ru.nsu.yousightseeing.api.UserApi;
 
 public class ProfileActivity extends AppCompatActivity {
 

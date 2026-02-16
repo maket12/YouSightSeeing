@@ -1,7 +1,9 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.app.Application;
 import com.yandex.mapkit.MapKitFactory;
+
+import ru.nsu.yousightseeing.BuildConfig;
 
 public class MyApplication extends Application {
     @Override

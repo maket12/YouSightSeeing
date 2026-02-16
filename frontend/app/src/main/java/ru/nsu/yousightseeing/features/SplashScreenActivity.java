@@ -1,4 +1,4 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -6,6 +6,8 @@ import android.view.animation.Animation;
 import android.view.animation.TranslateAnimation;
 import android.widget.ImageView;
 import androidx.appcompat.app.AppCompatActivity;
+
+import ru.nsu.yousightseeing.R;
 
 public class SplashScreenActivity extends AppCompatActivity {
 

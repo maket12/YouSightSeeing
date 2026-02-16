@@ -1,4 +1,4 @@
-package api;
+package ru.nsu.yousightseeing.api;
 
 import android.content.Context;
 import android.content.SharedPreferences;

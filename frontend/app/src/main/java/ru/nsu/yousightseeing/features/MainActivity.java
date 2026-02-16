@@ -1,4 +1,4 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -14,8 +14,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 
-import model.Route;
-import utils.RouteOptimizer;
+import ru.nsu.yousightseeing.BuildConfig;
+import ru.nsu.yousightseeing.R;
+import ru.nsu.yousightseeing.model.Route;
+import ru.nsu.yousightseeing.utils.RouteOptimizer;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
 import com.yandex.mapkit.geometry.Geometry;
