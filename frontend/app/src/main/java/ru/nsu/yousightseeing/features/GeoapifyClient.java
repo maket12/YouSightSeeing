@@ -1,8 +1,8 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Context;
 import com.yandex.mapkit.geometry.Point;
-import api.PlacesApi;
+import ru.nsu.yousightseeing.api.PlacesApi;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;

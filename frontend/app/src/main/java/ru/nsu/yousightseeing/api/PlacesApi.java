@@ -1,11 +1,11 @@
-package api;
+package ru.nsu.yousightseeing.api;
 
 import android.content.Context;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.example.yandexmapcitysearch.AuthActivity;
+import ru.nsu.yousightseeing.features.AuthActivity;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -25,7 +25,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 /**
- * Клиент для /api/places/search (Geoapify через backend).
+ * Клиент для /ru.nsu.yousightseeing.api/places/search (Geoapify через backend).
  * Отправляет SearchPoiRequest и парсит SearchPlacesResponse.
  */
 public final class PlacesApi {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.yandexmapcitysearch">
+    package="ru.nsu.yousightseeing">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
-        android:name=".MyApplication"
+        android:name="ru.nsu.yousightseeing.features.MyApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -19,7 +19,7 @@
 
         <!-- 🔹 Заставка (UI) -->
         <activity
-            android:name=".SplashScreenActivity"
+            android:name="ru.nsu.yousightseeing.features.SplashScreenActivity"
             android:theme="@style/SplashTheme"
             android:exported="true">
             <intent-filter>
@@ -30,29 +30,29 @@
 
         <!-- 🔹 Логика навигации -->
         <activity
-            android:name=".SplashActivity"
+            android:name="ru.nsu.yousightseeing.features.SplashActivity"
             android:exported="false" />
 
         <activity
-            android:name=".AuthActivity"
+            android:name="ru.nsu.yousightseeing.features.AuthActivity"
             android:exported="false" />
 
         <activity
-            android:name=".PreferencesActivity"
+            android:name="ru.nsu.yousightseeing.features.PreferencesActivity"
             android:exported="false" />
 
         <activity
-            android:name=".PermissionActivity"
+            android:name="ru.nsu.yousightseeing.features.PermissionActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity
-            android:name=".MainActivity"
+            android:name="ru.nsu.yousightseeing.features.MainActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity
-            android:name=".ProfileActivity"
+            android:name="ru.nsu.yousightseeing.features.ProfileActivity"
             android:exported="false" />
 
     </application>

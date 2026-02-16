@@ -1,13 +1,12 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Context;
 
 import com.yandex.mapkit.geometry.Point;
 
-import java.util.ArrayList;
 import java.util.List;
 
-import api.RouteApi;
+import ru.nsu.yousightseeing.api.RouteApi;
 
 public class OpenRouteServiceClient {
 
@@ -17,7 +16,7 @@ public class OpenRouteServiceClient {
     }
 
     /**
-     * Многоточечный маршрут через backend /api/routes/calculate
+     * Многоточечный маршрут через backend /ru.nsu.yousightseeing.api/routes/calculate
      */
     public void getMultiPointRoute(Context ctx, List<Point> points, ORSCallback callback) {
         if (points == null || points.size() < 2) {

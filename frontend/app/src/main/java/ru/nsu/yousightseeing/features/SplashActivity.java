@@ -1,4 +1,4 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
