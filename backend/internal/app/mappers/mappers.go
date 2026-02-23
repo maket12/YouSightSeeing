@@ -8,6 +8,24 @@ import (
 	"github.com/google/uuid"
 )
 
+func MapPlacesIntoResponse(places []entity.Place) []dto.Place {
+	if places == nil {
+		return []dto.Place{}
+	}
+
+	result := make([]dto.Place, 0, len(places))
+	for _, p := range places {
+		result = append(result, dto.Place{
+			PlaceID:     p.ID,
+			Name:        p.Name,
+			Address:     p.Address,
+			Categories:  p.Categories,
+			Coordinates: p.Coordinates,
+		})
+	}
+	return result
+}
+
 func MapUserIntoUserResponse(user *entity.User) dto.UserResponse {
 	if user != nil {
 		return dto.UserResponse{
