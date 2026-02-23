@@ -32,4 +32,8 @@ var (
 
 	ErrRouteCalculationFailed = errors.New("failed to calculate route")
 	ErrInvalidRoutePoints     = errors.New("need at least 2 points to calculate a route")
+
+	ErrSearchPlacesFailed  = errors.New("failed to search places")
+	ErrInvalidSearchRadius = errors.New("search radius must be positive")
+	ErrInvalidCoordinates  = errors.New("invalid coordinates")
 )

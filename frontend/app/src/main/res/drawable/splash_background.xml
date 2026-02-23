@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:opacity="opaque">
+
+    <!-- Белый фон -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFF"/>
+        </shape>
+    </item>
+
+    <!-- Логотип по центру -->
+    <item
+        android:width="260dp"
+        android:height="260dp"
+        android:gravity="center">
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/main_illustration" />
+    </item>
+
+    <!-- Текст под логотипом (используем shape с цветом бренда) -->
+    <item
+        android:top="380dp"
+        android:gravity="center_horizontal|top">
+        <shape android:shape="rectangle">
+            <size android:width="200dp" android:height="40dp"/>
+            <solid android:color="#5EABB1"/>
+            <corners android:radius="20dp"/>
+        </shape>
+    </item>
+</layer-list>
