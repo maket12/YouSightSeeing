@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -50,19 +51,30 @@ import com.yandex.mapkit.user_location.UserLocationObjectListener;
 import com.yandex.mapkit.user_location.UserLocationView;
 import com.yandex.mapkit.layers.ObjectEvent;
 import android.graphics.PointF;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.google.android.material.slider.Slider;
+import com.google.android.material.switchmaterial.SwitchMaterial;
 
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
     // UI компоненты
     private MapView mapView;
     private EditText editCity;
-    private Button btnSearch;
+    private ImageButton btnSearch;
     private Button btnBuildRoute;
     private Button btnZoomIn;
     private Button btnZoomOut;
 
     private Button btnProfile;
+    private Button btnAddPlace;
+    private Button btnOpenProfile;
 
     private Point manualStartPoint;
 
@@ -71,6 +83,13 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
     private final Set<PlacemarkMapObject> selectedMarkers = new HashSet<>();
 
+    private LinearLayout bottomSheet;
+    private BottomSheetBehavior<LinearLayout> bottomSheetBehavior;
+    private LinearLayout placesContainer;
+    private Slider sliderDurationHours;
+    private SwitchMaterial switchSnack;
+    private TextView tvStartTitle;
+    private TextView tvStartSubtitle;
 
     // Yandex Search
     private SearchManager searchManager;
@@ -162,6 +181,22 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         btnProfile = findViewById(R.id.btnProfile);
         btnBuildRoute = findViewById(R.id.btnBuildRoute);
         btnEditCategories = findViewById(R.id.btnEditCategories);
+        btnAddPlace = findViewById(R.id.btnAddPlace);
+        btnOpenProfile = findViewById(R.id.btnOpenProfile);
+
+        bottomSheet = findViewById(R.id.bottomSheet);
+        placesContainer = findViewById(R.id.placesContainer);
+        sliderDurationHours = findViewById(R.id.sliderDurationHours);
+        switchSnack = findViewById(R.id.switchSnack);
+        tvStartTitle = findViewById(R.id.tvStartTitle);
+        tvStartSubtitle = findViewById(R.id.tvStartSubtitle);
+
+        if (bottomSheet != null) {
+            bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
+            bottomSheetBehavior.setSkipCollapsed(false);
+            bottomSheetBehavior.setHideable(false);
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
 
 
         orsClient = new OpenRouteServiceClient();
@@ -177,6 +212,117 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         // Обработчики кнопок ПОСЛЕ всего
         setupButtonListeners();
+        updateSelectedPlacesList();
+        updateBottomSheetState();
+        updateStartHeader();
+    }
+
+    private void updateBottomSheetState() {
+        if (bottomSheetBehavior == null) return;
+
+        if (currentRoute != null) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+            return;
+        }
+
+        if (routeMode) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        } else {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
+    }
+
+    private void updateSelectedPlacesList() {
+        if (placesContainer == null) return;
+        placesContainer.removeAllViews();
+
+        LayoutInflater inflater = LayoutInflater.from(this);
+
+        // Показываем только выбранные POI (маркеры с userData)
+        if (selectedMarkers.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("Выберите места на карте — они появятся здесь.");
+            empty.setTextColor(getResources().getColor(R.color.text_primary));
+            empty.setAlpha(0.6f);
+            empty.setTextSize(14f);
+            empty.setPadding(0, 8, 0, 8);
+            placesContainer.addView(empty);
+            return;
+        }
+
+        for (PlacemarkMapObject marker : selectedMarkers) {
+            GeoapifyClient.Place place = (GeoapifyClient.Place) marker.getUserData();
+            View item = inflater.inflate(R.layout.item_place_pill, placesContainer, false);
+
+            TextView tvTitle = item.findViewById(R.id.tvPlaceTitle);
+            TextView tvSubtitle = item.findViewById(R.id.tvPlaceSubtitle);
+            ImageButton btnRemove = item.findViewById(R.id.btnRemovePlace);
+            View pill = item.findViewById(R.id.placePill);
+
+            String title = (place != null && place.name != null && !place.name.isEmpty())
+                    ? place.name
+                    : "Точка";
+            tvTitle.setText(title);
+
+            String subtitle = "На карте";
+            if (place != null) {
+                // Если адреса нет, лучше не выдумывать — оставим нейтральный текст
+                subtitle = "Добавлено в маршрут";
+            }
+            tvSubtitle.setText(subtitle);
+
+            View.OnClickListener removeListener = v -> {
+                togglePlaceInRoute(marker);
+                updateSelectedPlacesList();
+            };
+            btnRemove.setOnClickListener(removeListener);
+            pill.setOnClickListener(removeListener);
+
+            placesContainer.addView(item);
+        }
+    }
+
+    /**
+     * Обновляет заголовок блока "Начнем из" в bottom sheet.
+     * Показывает, откуда стартует маршрут: геопозиция пользователя или выбранная точка.
+     */
+    private void updateStartHeader() {
+        if (tvStartTitle == null || tvStartSubtitle == null) return;
+
+        if (startPoint == null) {
+            tvStartTitle.setText("Укажите отправную точку...");
+            tvStartSubtitle.setText("");
+            tvStartSubtitle.setAlpha(0.0f);
+            return;
+        }
+
+        // Старт от текущей геопозиции пользователя
+        if (userLocation != null && distanceInMeters(startPoint, userLocation) < 5.0) {
+            tvStartTitle.setText("Ваше местоположение");
+            tvStartSubtitle.setText("По данным геопозиции");
+            tvStartSubtitle.setAlpha(0.6f);
+            return;
+        }
+
+        // Попробуем найти место среди выбранных POI
+        String titleFromPoi = null;
+        for (PlacemarkMapObject marker : selectedMarkers) {
+            GeoapifyClient.Place place = (GeoapifyClient.Place) marker.getUserData();
+            if (place != null && place.location != null &&
+                    distanceInMeters(startPoint, place.location) < 20.0) {
+                titleFromPoi = place.name;
+                break;
+            }
+        }
+
+        if (titleFromPoi != null && !titleFromPoi.isEmpty()) {
+            tvStartTitle.setText(titleFromPoi);
+            tvStartSubtitle.setText("Выбранная точка на карте");
+        } else {
+            tvStartTitle.setText("Выбранная точка на карте");
+            tvStartSubtitle.setText("Тапните по карте, чтобы изменить");
+        }
+        tvStartSubtitle.setAlpha(0.6f);
     }
 
 
@@ -240,8 +386,35 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
         }
 
+        if (btnOpenProfile != null) {
+            btnOpenProfile.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
+        }
+
         if (btnEditCategories != null) {
             btnEditCategories.setOnClickListener(v -> showEditCategoriesDialog());
+        }
+
+        if (btnAddPlace != null) {
+            btnAddPlace.setOnClickListener(v -> {
+                SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+                Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
+                if (categories.isEmpty()) {
+                    Toast.makeText(this, "Сначала выберите категории в профиле", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                routeMode = true;
+                poiMode = false;
+                updateBuildRouteButton();
+                updateBottomSheetState();
+
+                if (poiMarkers.isEmpty()) {
+                    Toast.makeText(this, "👆 Тапните на карте — покажем точки интереса вокруг", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, "Тапните по точкам интереса на карте, чтобы добавить/убрать", Toast.LENGTH_LONG).show();
+                }
+            });
         }
 
         if (btnSelectStartPoint != null) {
@@ -266,12 +439,14 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     // Если маршрут уже построен → сброс
                     resetRoute();
                     Toast.makeText(this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
+                    updateBottomSheetState();
                     return;
                 }
 
                 if (!routeMode) {
                     // Включаем режим выбора маршрута
                     routeMode = true;
+                    updateBottomSheetState();
 
                     if (userLocation != null) {
                         // Геопозиция доступна → спрашиваем у пользователя
@@ -291,6 +466,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 }
 
                 updateBuildRouteButton();
+                updateSelectedPlacesList();
+                updateBottomSheetState();
             });
         }
     }
@@ -510,6 +687,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         poiMode = true;
         updateBuildRouteButton();
+        updateSelectedPlacesList();
+        updateBottomSheetState();
     }
 
 
@@ -565,6 +744,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                             }
 
                             updateBuildRouteButton();
+                            updateStartHeader();
                             Toast.makeText(MainActivity.this,
                                     "Точки вокруг геопозиции загружены. Стартовая точка добавлена.",
                                     Toast.LENGTH_LONG).show();
@@ -607,6 +787,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         updateBuildRouteButton();
         updateEditCategoriesButton();  // ← добавлено
+        updateSelectedPlacesList();
+        updateBottomSheetState();
 
         if (currentRoute != null) {
             buildOptimalRoute();
@@ -656,6 +838,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
             Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
             searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
+            updateStartHeader();
             return;
         }
 
@@ -669,6 +852,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
             Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
             searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
+            updateStartHeader();
         }
 
 
@@ -727,6 +911,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                                 Toast.LENGTH_SHORT).show();
                         updateBuildRouteButton();
                         updateEditCategoriesButton();
+                        updateSelectedPlacesList();
+                        updateBottomSheetState();
                     } else {
                         Toast.makeText(this,
                                 "Эта точка уже в маршруте",
@@ -861,6 +1047,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         currentRoute = new Route(routeCoordinates, "Маршрут " + System.currentTimeMillis());
 
         Toast.makeText(MainActivity.this, "Маршрут построен!", Toast.LENGTH_SHORT).show();
+        updateBottomSheetState();
     }
 
     /**
@@ -887,6 +1074,9 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         updateBuildRouteButton();
         updateEditCategoriesButton(); // ← добавлено
+        updateSelectedPlacesList();
+        updateBottomSheetState();
+        updateStartHeader();
     }
 
 

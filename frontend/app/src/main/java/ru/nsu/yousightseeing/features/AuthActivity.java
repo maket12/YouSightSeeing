@@ -58,9 +58,18 @@ public class AuthActivity extends AppCompatActivity {
     }
 
     private void signIn() {
+            btnGoogleSignIn.setEnabled(false);
+
+            // 🔥 ВРЕМЕННАЯ ЗАГЛУШКА
+            runOnUiThread(() -> {
+                saveTokensFromBackend("fake_access_token", "fake_refresh_token");
+                Toast.makeText(AuthActivity.this, "Вход (заглушка)", Toast.LENGTH_SHORT).show();
+                navigateToMain();
+            });
+        /*
         btnGoogleSignIn.setEnabled(false);
         Intent signInIntent = mGoogleSignInClient.getSignInIntent();
-        signInLauncher.launch(signInIntent);
+        signInLauncher.launch(signInIntent);*/
     }
 
     private final ActivityResultLauncher<Intent> signInLauncher =
