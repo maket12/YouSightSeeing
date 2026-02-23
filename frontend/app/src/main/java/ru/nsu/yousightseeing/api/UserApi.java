@@ -1,11 +1,11 @@
-package api;
+package ru.nsu.yousightseeing.api;
 
 import android.content.Context;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.example.yandexmapcitysearch.AuthActivity;
+import ru.nsu.yousightseeing.features.AuthActivity;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -33,7 +33,7 @@ public final class UserApi {
     }
 
     /**
-     * GET /api/users/me
+     * GET /ru.nsu.yousightseeing.api/users/me
      */
     public static void getMe(Context ctx, UserCallback cb) {
         String access = AuthActivity.getAccessToken();
@@ -70,7 +70,7 @@ public final class UserApi {
     }
 
     /**
-     * PATCH /api/users/me
+     * PATCH /ru.nsu.yousightseeing.api/users/me
      * body: UpdateUserRequest (любые поля: email, full_name, first_name, last_name, picture)
      */
     public static void updateMe(Context ctx, JSONObject updateBody, UserCallback cb) {
@@ -112,7 +112,7 @@ public final class UserApi {
     }
 
     /**
-     * POST /api/users/me/picture
+     * POST /ru.nsu.yousightseeing.api/users/me/picture
      * body: { "picture": "<url or empty string>" }
      */
     public static void updatePicture(Context ctx, String pictureUrl, UserCallback cb) {

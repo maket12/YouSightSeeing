@@ -1,4 +1,4 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Context;
 import android.content.Intent;
@@ -20,7 +20,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 
-import api.AuthApi;
+import ru.nsu.yousightseeing.R;
+import ru.nsu.yousightseeing.api.AuthApi;
 
 public class AuthActivity extends AppCompatActivity {
 

@@ -1,4 +1,4 @@
-package utils;
+package ru.nsu.yousightseeing.utils;
 
 import com.yandex.mapkit.geometry.Point;
 import java.util.ArrayList;
