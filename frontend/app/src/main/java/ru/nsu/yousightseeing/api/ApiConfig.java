@@ -1,4 +1,4 @@
-package api;
+package ru.nsu.yousightseeing.api;
 
 public final class ApiConfig {
     private ApiConfig() {}

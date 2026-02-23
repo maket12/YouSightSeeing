@@ -1,11 +1,11 @@
-package api;
+package ru.nsu.yousightseeing.api;
 
 import android.content.Context;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.example.yandexmapcitysearch.AuthActivity;
+import ru.nsu.yousightseeing.features.AuthActivity;
 import com.yandex.mapkit.geometry.Point;
 
 import org.json.JSONArray;
@@ -37,7 +37,7 @@ public final class RouteApi {
     }
 
     /**
-     * POST /api/routes/calculate
+     * POST /ru.nsu.yousightseeing.api/routes/calculate
      * body: RouteRequest
      * {
      *   "coordinates": [[lon,lat], ...],

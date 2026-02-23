@@ -1,8 +1,6 @@
-package com.example.yandexmapcitysearch;
+package ru.nsu.yousightseeing.features;
 
 import android.content.Intent;
-import android.graphics.Color;
-import android.graphics.PorterDuff;
 import android.os.Bundle;
 import android.widget.ImageButton;
 import android.widget.Toast;
@@ -20,6 +18,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import ru.nsu.yousightseeing.R;
 
 public class PreferencesActivity extends AppCompatActivity {
 

@@ -1,4 +1,4 @@
-package model;
+package ru.nsu.yousightseeing.model;
 
 import com.yandex.mapkit.geometry.Point;
 import java.util.List;
