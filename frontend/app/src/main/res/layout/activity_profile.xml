@@ -88,7 +88,7 @@
                     android:id="@+id/cbCatShopping"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Место для шоппинга"
+                    android:text="Места для шопинга"
                     android:textColor="@color/text_on_teal"
                     android:textSize="14sp"
                     android:buttonTint="@color/white"

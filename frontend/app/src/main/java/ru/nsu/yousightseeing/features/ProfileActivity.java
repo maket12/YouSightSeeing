@@ -33,7 +33,7 @@ public class ProfileActivity extends AppCompatActivity {
     private static final String PREF_CATEGORIES = "categories";
 
     private static final String CAT_ACTIVE = "Активные приключения";
-    private static final String CAT_SHOPPING = "Место для шоппинга";
+    private static final String CAT_SHOPPING = "Места для шопинга";
     private static final String CAT_HISTORY = "История, культура";
     private static final String CAT_FUN = "Досуг и развлечения";
     private static final String CAT_NATURE = "Природа и свежий воздух";
