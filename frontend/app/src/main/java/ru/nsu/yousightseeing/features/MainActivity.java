@@ -79,6 +79,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private PlacemarkMapObject startMarker;
     private Point manualStartPoint;
 
+    private UserLocationLayer userLocationLayer;
+
     private Button btnSelectStartPoint;
     private boolean manualStartPointMode = false; // режим выбора стартовой точки
 
@@ -119,7 +121,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
     // Геолокация MapKit
     private boolean allowGeo = false;
-    private UserLocationLayer userLocationLayer;
 
     private Button btnEditCategories;
 
@@ -139,38 +140,18 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        initializeMapKit();
         setContentView(R.layout.activity_main);
 
-        // ← СВЯЗЬ С PermissionActivity
-        allowGeo = getIntent().getBooleanExtra("ALLOW_GEO", false);
+        if (getIntent().hasExtra("ALLOW_GEO")) {
+            allowGeo = getIntent().getBooleanExtra("ALLOW_GEO", false);
+        }
+
         Log.d("MainActivity", "ALLOW_GEO = " + allowGeo);
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this);
 
         initializeUI();
         initializeSearch();
-    }
-
-
-    /**
-     * Инициализация MapKit
-     */
-    private void initializeMapKit() {
-        try {
-            if (BuildConfig.MAPKIT_API_KEY == null || BuildConfig.MAPKIT_API_KEY.isEmpty()) {
-                Log.e("MainActivity", "MAPKIT_API_KEY is not set in BuildConfig");
-                Toast.makeText(this, "Ошибка: API-ключ не настроен", Toast.LENGTH_LONG).show();
-                return;
-            }
-
-            MapKitFactory.setApiKey(BuildConfig.MAPKIT_API_KEY);
-            MapKitFactory.initialize(this);
-            Log.d("MainActivity", "MapKit initialized successfully");
-        } catch (AssertionError e) {
-            Log.e("MainActivity", "Ошибка инициализации MapKit: " + e.getMessage());
-            Toast.makeText(this, "Ошибка инициализации карты: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
     }
 
     /**
@@ -401,30 +382,30 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      */
     private void initializeMap() {
         MapWindow mapWindow = mapView.getMapWindow();
+
         if (mapWindow != null) {
+
             mapInputListener = new InputListener() {
                 @Override
                 public void onMapTap(com.yandex.mapkit.map.Map map, Point point) {
                     handleMapTap(map, point);
                 }
-
                 @Override
                 public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) {
-                    // Сброс маршрута по долгому нажатию
                     resetRoute();
                     Toast.makeText(MainActivity.this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
                 }
             };
 
             mapWindow.getMap().addInputListener(mapInputListener);
-            mapWindow.getMap().move(
-                    new CameraPosition(new Point(55.751225, 37.62954), 10.0f, 0.0f, 0.0f),
-                    new Animation(Animation.Type.SMOOTH, 1),
-                    null
-            );
-        } else {
-            Toast.makeText(this, "Ошибка инициализации MapWindow", Toast.LENGTH_LONG).show();
-            Log.e("MainActivity", "MapWindow is null");
+
+            if (!allowGeo) {
+                mapWindow.getMap().move(
+                        new CameraPosition(new Point(55.751225, 37.62954), 10f, 0f, 0f),
+                        new Animation(Animation.Type.SMOOTH, 1),
+                        null
+                );
+            }
         }
     }
 
@@ -1388,7 +1369,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void checkAndRequestLocation() {
         if (!allowGeo) {
             Log.d("MainActivity", "Геолокация отключена пользователем");
-            fallbackToMoscow();
             return;
         }
 
@@ -1407,11 +1387,14 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     }
 
     private void initUserLocationLayer() {
+
         if (mapView == null) return;
+
+        // не создавать второй слой
+        if (userLocationLayer != null) return;
 
         userLocationLayer =
                 MapKitFactory.getInstance().createUserLocationLayer(mapView.getMapWindow());
-
         userLocationLayer.setVisible(true);
         userLocationLayer.setAutoZoomEnabled(false);
 
@@ -1564,8 +1547,17 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     @Override
     protected void onStart() {
         super.onStart();
+
         MapKitFactory.getInstance().onStart();
         if (mapView != null) mapView.onStart();
+
+        if (userLocationLayer != null) {
+            userLocationLayer.setVisible(true);
+        }
+
+        if (allowGeo) {
+            requestUserLocation();
+        }
     }
 
     @Override

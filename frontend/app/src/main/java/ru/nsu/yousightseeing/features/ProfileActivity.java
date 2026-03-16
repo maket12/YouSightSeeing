@@ -80,13 +80,7 @@ public class ProfileActivity extends AppCompatActivity {
         });
 
 
-        // Вернуться в главное меню
-        btnGoHome.setOnClickListener(v -> {
-            Intent intent = new Intent(ProfileActivity.this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            finish();
-        });
+        btnGoHome.setOnClickListener(v -> finish());
     }
 
     private void bindCategories() {
