@@ -114,7 +114,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:hint="Укажите отправную точку..."
+                android:hint="Найти место..."
                 android:inputType="text"
                 android:background="@android:color/transparent"
                 android:textColor="@color/text_primary"
@@ -164,7 +164,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="16dp">
+                    android:layout_marginBottom="8dp">
 
                     <ImageView
                         android:layout_width="20dp"
@@ -203,6 +203,20 @@
                             android:maxLines="1" />
                     </LinearLayout>
                 </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnChangeStart"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Изменить отправную точку"
+                    android:textAllCaps="false"
+                    android:textSize="12sp"
+                    android:textColor="@color/teal_primary"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:layout_marginBottom="16dp" />
 
                 <TextView
                     android:layout_width="wrap_content"

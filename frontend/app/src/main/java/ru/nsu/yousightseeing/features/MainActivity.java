@@ -12,6 +12,8 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.annotation.Nullable;
+
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 
@@ -21,6 +23,7 @@ import ru.nsu.yousightseeing.model.Route;
 import ru.nsu.yousightseeing.utils.RouteOptimizer;
 import com.yandex.mapkit.Animation;
 import com.yandex.mapkit.MapKitFactory;
+import com.yandex.mapkit.geometry.BoundingBox;
 import com.yandex.mapkit.geometry.Geometry;
 import com.yandex.mapkit.geometry.Point;
 import com.yandex.mapkit.geometry.Polyline;
@@ -30,12 +33,11 @@ import com.yandex.mapkit.map.MapObjectCollection;
 import com.yandex.mapkit.map.MapWindow;
 import com.yandex.mapkit.map.PlacemarkMapObject;
 import com.yandex.mapkit.map.PolylineMapObject;
-import com.yandex.mapkit.map.VisibleRegionUtils;
+import com.yandex.mapkit.map.VisibleRegion;
 import com.yandex.mapkit.mapview.MapView;
 import com.yandex.mapkit.search.Response;
 import com.yandex.mapkit.search.SearchFactory;
 import com.yandex.mapkit.search.SearchManager;
-import com.yandex.mapkit.search.SearchManagerType;
 import com.yandex.mapkit.search.SearchOptions;
 import com.yandex.mapkit.search.Session;
 import com.yandex.runtime.Error;
@@ -53,8 +55,6 @@ import com.yandex.mapkit.layers.ObjectEvent;
 import android.graphics.PointF;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -76,6 +76,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private Button btnAddPlace;
     private Button btnOpenProfile;
 
+    private PlacemarkMapObject startMarker;
     private Point manualStartPoint;
 
     private Button btnSelectStartPoint;
@@ -90,6 +91,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private SwitchMaterial switchSnack;
     private TextView tvStartTitle;
     private TextView tvStartSubtitle;
+    private Button btnChangeStart;
 
     // Yandex Search
     private SearchManager searchManager;
@@ -104,6 +106,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private boolean poiMode = false;
     private List<Point> selectedPoints = new ArrayList<>();
     private List<PlacemarkMapObject> poiMarkers = new ArrayList<>();
+    private final List<PlacemarkMapObject> customMarkers = new ArrayList<>();
     private PolylineMapObject routeLine;
 
     // Map input
@@ -136,6 +139,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        initializeMapKit();
         setContentView(R.layout.activity_main);
 
         // ← СВЯЗЬ С PermissionActivity
@@ -144,7 +148,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         fusedClient = LocationServices.getFusedLocationProviderClient(this);
 
-        initializeMapKit();
         initializeUI();
         initializeSearch();
     }
@@ -161,6 +164,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 return;
             }
 
+            MapKitFactory.setApiKey(BuildConfig.MAPKIT_API_KEY);
             MapKitFactory.initialize(this);
             Log.d("MainActivity", "MapKit initialized successfully");
         } catch (AssertionError e) {
@@ -190,6 +194,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         switchSnack = findViewById(R.id.switchSnack);
         tvStartTitle = findViewById(R.id.tvStartTitle);
         tvStartSubtitle = findViewById(R.id.tvStartSubtitle);
+        btnChangeStart = findViewById(R.id.btnChangeStart);
+
+        tvStartTitle.setOnClickListener(v -> enableStartPointSelection());
+        tvStartSubtitle.setOnClickListener(v -> enableStartPointSelection());
 
         if (bottomSheet != null) {
             bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
@@ -217,6 +225,29 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         updateStartHeader();
     }
 
+    private void enableStartPointSelection() {
+        // Нельзя менять, если старт ещё не выбран и геолокации нет
+        if (startPoint == null && userLocation == null) {
+            Toast.makeText(this,
+                    "Сначала задайте отправную точку кнопкой \"Построить маршрут\"",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        // Если старт ещё не выбран, но есть геолокация — сначала покажем выбор
+        if (startPoint == null && userLocation != null) {
+            showRouteStartDialog();
+            return;
+        }
+
+        manualStartPointMode = true;
+        routeMode = true;
+
+        Toast.makeText(this,
+                "Тапните по карте, чтобы изменить стартовую точку",
+                Toast.LENGTH_LONG).show();
+    }
+
     private void updateBottomSheetState() {
         if (bottomSheetBehavior == null) return;
 
@@ -238,8 +269,16 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         LayoutInflater inflater = LayoutInflater.from(this);
 
-        // Показываем только выбранные POI (маркеры с userData)
-        if (selectedMarkers.isEmpty()) {
+        // Список для плана маршрута: только точки, отличные от старта
+        List<Point> routePoints = new ArrayList<>();
+        for (Point p : selectedPoints) {
+            if (startPoint != null && distanceInMeters(startPoint, p) < 5.0) {
+                continue;
+            }
+            routePoints.add(p);
+        }
+
+        if (routePoints.isEmpty()) {
             TextView empty = new TextView(this);
             empty.setText("Выберите места на карте — они появятся здесь.");
             empty.setTextColor(getResources().getColor(R.color.text_primary));
@@ -250,8 +289,20 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             return;
         }
 
-        for (PlacemarkMapObject marker : selectedMarkers) {
-            GeoapifyClient.Place place = (GeoapifyClient.Place) marker.getUserData();
+        for (Point point : routePoints) {
+
+            // Найдём маркер/POI (если есть) для этой точки
+            PlacemarkMapObject marker = null;
+            GeoapifyClient.Place place = null;
+            for (PlacemarkMapObject candidate : selectedMarkers) {
+                GeoapifyClient.Place candidatePlace = (GeoapifyClient.Place) candidate.getUserData();
+                if (candidatePlace != null && candidatePlace.location != null &&
+                        distanceInMeters(point, candidatePlace.location) < 5.0) {
+                    marker = candidate;
+                    place = candidatePlace;
+                    break;
+                }
+            }
             View item = inflater.inflate(R.layout.item_place_pill, placesContainer, false);
 
             TextView tvTitle = item.findViewById(R.id.tvPlaceTitle);
@@ -259,20 +310,39 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             ImageButton btnRemove = item.findViewById(R.id.btnRemovePlace);
             View pill = item.findViewById(R.id.placePill);
 
-            String title = (place != null && place.name != null && !place.name.isEmpty())
-                    ? place.name
-                    : "Точка";
+            String title;
+            if (place != null && place.name != null && !place.name.isEmpty()) {
+                title = place.name;
+            } else {
+                title = String.format("Точка (%.5f, %.5f)",
+                        point.getLatitude(), point.getLongitude());
+            }
+
+            // помечаем стартовую точку
+            if (startPoint != null && distanceInMeters(startPoint, point) < 5.0) {
+                title = "Старт: " + title;
+            }
             tvTitle.setText(title);
 
-            String subtitle = "На карте";
-            if (place != null) {
-                // Если адреса нет, лучше не выдумывать — оставим нейтральный текст
-                subtitle = "Добавлено в маршрут";
-            }
+            String subtitle = "Добавлено в маршрут";
             tvSubtitle.setText(subtitle);
 
+            final Point pointRef = point;
+            final PlacemarkMapObject markerRef = marker;
+
             View.OnClickListener removeListener = v -> {
-                togglePlaceInRoute(marker);
+                if (markerRef != null) {
+                    togglePlaceInRoute(markerRef);
+                } else {
+                    selectedPoints.remove(pointRef);
+                    // если убираем стартовую точку
+                    if (startPoint != null && distanceInMeters(startPoint, pointRef) < 5.0) {
+                        startPoint = null;
+                        showStartPoint(null);
+                        updateStartHeader();
+                    }
+                    updateBuildRouteButton();
+                }
                 updateSelectedPlacesList();
             };
             btnRemove.setOnClickListener(removeListener);
@@ -319,7 +389,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             tvStartTitle.setText(titleFromPoi);
             tvStartSubtitle.setText("Выбранная точка на карте");
         } else {
-            tvStartTitle.setText("Выбранная точка на карте");
+            tvStartTitle.setText(String.format("%.5f, %.5f", startPoint.getLatitude(), startPoint.getLongitude()));
             tvStartSubtitle.setText("Тапните по карте, чтобы изменить");
         }
         tvStartSubtitle.setAlpha(0.6f);
@@ -407,7 +477,9 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 routeMode = true;
                 poiMode = false;
                 updateBuildRouteButton();
-                updateBottomSheetState();
+                if (bottomSheetBehavior != null) {
+                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+                }
 
                 if (poiMarkers.isEmpty()) {
                     Toast.makeText(this, "👆 Тапните на карте — покажем точки интереса вокруг", Toast.LENGTH_LONG).show();
@@ -418,13 +490,17 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         }
 
         if (btnSelectStartPoint != null) {
-            btnSelectStartPoint.setOnClickListener(v -> {
-                manualStartPointMode = true;
-                routeMode = true; // включаем режим выбора POI
-                Toast.makeText(this, "👆 Тапните на карте, чтобы выбрать стартовую точку", Toast.LENGTH_LONG).show();
-            });
+            btnSelectStartPoint.setOnClickListener(v -> enableStartPointSelection());
         }
 
+        if (btnChangeStart != null) {
+            btnChangeStart.setOnClickListener(v -> {
+                enableStartPointSelection();
+                if (bottomSheetBehavior != null) {
+                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+                }
+            });
+        }
 
         if (btnBuildRoute != null) {
             btnBuildRoute.setOnClickListener(v -> {
@@ -576,7 +652,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Инициализация поиска городов
      */
     private void initializeSearch() {
-        searchManager = SearchFactory.getInstance().createSearchManager(SearchManagerType.ONLINE);
+        searchManager = SearchFactory.getInstance()
+                .createSearchManager(com.yandex.mapkit.search.SearchManagerType.COMBINED);
     }
 
     /**
@@ -619,7 +696,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             btnBuildRoute.setText("Построить маршрут");
             btnBuildRoute.setEnabled(true);
         } else {
-            if (poiMarkers.isEmpty()) {
+            if (poiMarkers.isEmpty() && customMarkers.isEmpty()) {
                 btnBuildRoute.setText("Ждём тап...");
                 btnBuildRoute.setEnabled(false);
             } else {
@@ -658,6 +735,26 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 );
             }
         });
+    }
+
+    private void showStartPoint(Point point) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+
+        // удалить старую звезду
+        if (startMarker != null) {
+            mapObjects.remove(startMarker);
+            startMarker = null;
+        }
+
+        if (point == null) return;
+
+        // создать новую
+        startMarker = mapObjects.addPlacemark(point);
+        startMarker.setIcon(
+                ImageProvider.fromResource(this, android.R.drawable.btn_star_big_on)
+        );
     }
 
 
@@ -729,10 +826,9 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                             clearNearbyPlaces();
                             selectedPoints.clear();
 
-                            // ✅ Добавляем только если геопозиция есть
+                            // ✅ Стартовая точка = геопозиция, но в план не добавляем
                             startPoint = userLocation;
                             lastPoiCenter = userLocation;
-                            selectedPoints.add(userLocation);
 
                             for (GeoapifyClient.Place place : places) {
                                 if (place.location != null && distanceInMeters(userLocation, place.location) <= 5000) {
@@ -768,11 +864,17 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             selectedMarkers.remove(marker);
             selectedPoints.remove(place.location);
 
-            marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            if (customMarkers.contains(marker)) {
+                // For custom points, remove them completely
+                mapView.getMapWindow().getMap().getMapObjects().remove(marker);
+                customMarkers.remove(marker);
+            } else {
+                // For POI, just reset the icon
+                marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            }
 
-            Toast.makeText(this,
-                    (place.name != null ? place.name : "Точка") + " убрано из маршрута",
-                    Toast.LENGTH_SHORT).show();
+            String placeName = (place.name != null && !place.name.isEmpty()) ? place.name : String.format("%.5f, %.5f", place.location.getLatitude(), place.location.getLongitude());
+            Toast.makeText(this, placeName + " убрано из маршрута", Toast.LENGTH_SHORT).show();
         } else {
             // ✅ ДОБАВИТЬ в маршрут
             selectedMarkers.add(marker);
@@ -780,13 +882,12 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
             marker.setIcon(ImageProvider.fromResource(this, android.R.drawable.btn_star_big_on));
 
-            Toast.makeText(this,
-                    (place.name != null ? place.name : "Точка") + " добавлено (" + selectedPoints.size() + ")",
-                    Toast.LENGTH_SHORT).show();
+            String placeName = (place.name != null && !place.name.isEmpty()) ? place.name : String.format("%.5f, %.5f", place.location.getLatitude(), place.location.getLongitude());
+            Toast.makeText(this, placeName + " добавлено (" + selectedPoints.size() + ")", Toast.LENGTH_SHORT).show();
         }
 
         updateBuildRouteButton();
-        updateEditCategoriesButton();  // ← добавлено
+        updateEditCategoriesButton();
         updateSelectedPlacesList();
         updateBottomSheetState();
 
@@ -830,44 +931,58 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void handleMapTap(com.yandex.mapkit.map.Map map, Point point) {
         if (!routeMode) return;
 
-        // ПЕРВЫЙ ТАП = центр POI
-        if (poiMarkers.isEmpty()) {
+        // если пользователь меняет стартовую точку
+        if (manualStartPointMode) {
+
             startPoint = point;
-            lastPoiCenter = point;
-            Toast.makeText(this, "🔍 Ищем POI вокруг точки...", Toast.LENGTH_SHORT).show();
+            manualStartPoint = point;
+
+            showStartPoint(point);   // ⭐ обновляем звезду
+            updateStartHeader();
+
+            manualStartPointMode = false;
+
+            // при смене старта подгружаем дополнительные POI вокруг новой точки
             SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
             Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
+            if (categories == null) categories = new HashSet<>();
             searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
+
+            Toast.makeText(this, "Стартовая точка изменена", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // первый тап — выбираем стартовую точку и ищем POI
+        if (poiMarkers.isEmpty() && customMarkers.isEmpty()) {
+
+            startPoint = point;
+            lastPoiCenter = point;
+
+            showStartPoint(point);   // ⭐ показать стартовую точку
+
+            Toast.makeText(this, "🔍 Ищем POI вокруг точки...", Toast.LENGTH_SHORT).show();
+
+            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+            Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
+
+            searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
+
             updateStartHeader();
             return;
         }
 
-        if (manualStartPointMode) {
-            manualStartPoint = point; // ← сохраняем выбранную точку
-            startPoint = point;       // временно для визуализации
-            manualStartPointMode = false;
-            Toast.makeText(this, "Стартовая точка выбрана", Toast.LENGTH_SHORT).show();
+        // ищем тап по существующему маркеру
+        List<PlacemarkMapObject> allMarkers = new ArrayList<>(poiMarkers);
+        allMarkers.addAll(customMarkers);
 
-            // Запускаем поиск POI вокруг этой точки
-            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-            Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
-            searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
-            updateStartHeader();
-        }
-
-
-
-        // POI есть → ищем тап по POI ИЛИ своя точка
         PlacemarkMapObject tappedMarker = null;
-        GeoapifyClient.Place tappedPlace = null;
 
-        for (PlacemarkMapObject marker : poiMarkers) {
-            GeoapifyClient.Place markerPlace = (GeoapifyClient.Place) marker.getUserData();
-            if (markerPlace != null && markerPlace.location != null) {
-                double distance = distanceBetween(point, markerPlace.location);
-                if (distance < 0.0005) { // ~50м
+        for (PlacemarkMapObject marker : allMarkers) {
+            Point markerLocation = marker.getGeometry();
+            if (markerLocation != null) {
+                double distance = distanceBetween(point, markerLocation);
+                if (distance < 0.0005) { // ~50 м
                     tappedMarker = marker;
-                    tappedPlace = markerPlace;
                     break;
                 }
             }
@@ -876,10 +991,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (tappedMarker != null) {
             showPoiInfoDialog(tappedMarker);
         } else {
-            showAddPointDialog(null, point);
+            addCustomPointFromTap(point);
         }
-
-
     }
 
 
@@ -890,38 +1003,74 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         return Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
     }
 
+    private void addCustomPointFromTap(final Point point) {
 
-    /**
-     * Показывает диалог добавления точки в маршрут для ЛЮБОГО тапа на карте.
-     *
-     * @param place POI объект (может быть null для обычной точки на карте)
-     * @param point координаты тапа на карте
-     */
-    private void showAddPointDialog(GeoapifyClient.Place place, Point point) {
-        String title = place != null ? (place.name != null ? place.name : "POI") : "Точка на карте";
+        Toast.makeText(this, "Определение точки...", Toast.LENGTH_SHORT).show();
+
+        SearchOptions options = new SearchOptions();
+        options.setResultPageSize(1);
+
+        searchSession = searchManager.submit(
+                point,
+                16,
+                options,
+                new Session.SearchListener() {
+
+                    @Override
+                    public void onSearchResponse(Response response) {
+
+                        String title = String.format(
+                                "%.5f, %.5f",
+                                point.getLatitude(),
+                                point.getLongitude()
+                        );
+
+                        runOnUiThread(() ->
+                                showConfirmationForCustomPoint(point, title)
+                        );
+                    }
+
+                    @Override
+                    public void onSearchError(Error error) {
+
+                        Log.e("MainActivity",
+                                "Reverse geocoding error: " + error.toString());
+
+                        runOnUiThread(() ->
+                                showConfirmationForCustomPoint(
+                                        point,
+                                        String.format("%.5f, %.5f",
+                                                point.getLatitude(),
+                                                point.getLongitude())
+                                )
+                        );
+                    }
+                }
+        );
+    }
+
+    private void showConfirmationForCustomPoint(final Point point, @Nullable String name) {
+        final String title = (name != null && !name.isEmpty())
+                ? name
+                : String.format("%.5f, %.5f", point.getLatitude(), point.getLongitude());
 
         new AlertDialog.Builder(this)
                 .setTitle(title)
                 .setMessage("Добавить в маршрут?")
                 .setPositiveButton("Добавить", (dialog, which) -> {
-                    if (!selectedPoints.contains(point)) {
-                        selectedPoints.add(point);
-                        Toast.makeText(this,
-                                "Точка добавлена (" + selectedPoints.size() + ")",
-                                Toast.LENGTH_SHORT).show();
-                        updateBuildRouteButton();
-                        updateEditCategoriesButton();
-                        updateSelectedPlacesList();
-                        updateBottomSheetState();
-                    } else {
-                        Toast.makeText(this,
-                                "Эта точка уже в маршруте",
-                                Toast.LENGTH_SHORT).show();
-                    }
+                    MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+                    PlacemarkMapObject newMarker = mapObjects.addPlacemark(point);
+
+                    GeoapifyClient.Place newPlace = new GeoapifyClient.Place(title, point);
+                    newMarker.setUserData(newPlace);
+
+                    customMarkers.add(newMarker);
+                    togglePlaceInRoute(newMarker);
                 })
                 .setNegativeButton("Отмена", null)
                 .show();
     }
+
 
     /**
      * Построение оптимального маршрута
@@ -1009,7 +1158,12 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         boolean alreadySelected = selectedMarkers.contains(marker);
 
-        String title = place.name != null ? place.name : "Точка на карте";
+        String title;
+        if (place.name != null && !place.name.isEmpty()) {
+            title = place.name;
+        } else {
+            title = String.format("%.5f, %.5f", place.location.getLatitude(), place.location.getLongitude());
+        }
 
         new AlertDialog.Builder(this)
                 .setTitle(title)
@@ -1057,6 +1211,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (mapView != null && mapView.getMapWindow() != null) {
             MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
             for (PlacemarkMapObject marker : poiMarkers) mapObjects.remove(marker);
+            for (PlacemarkMapObject marker : customMarkers) mapObjects.remove(marker);
             if (routeLine != null) {
                 mapObjects.remove(routeLine);
                 routeLine = null;
@@ -1067,6 +1222,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         selectedMarkers.clear();
         selectedPoints.clear();
         poiMarkers.clear();
+        customMarkers.clear();
         poiMode = false;
         routeMode = false;
         currentRoute = null;
@@ -1165,35 +1321,47 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Поиск города по названию
      */
     private void submitQuery(String query) {
+
         if (searchSession != null) {
             searchSession.cancel();
         }
 
-        if (mapView != null) {
-            MapWindow mapWindow = mapView.getMapWindow();
-            if (mapWindow != null && mapWindow.getMap() != null) {
-                Geometry visibleRegion = VisibleRegionUtils.toPolygon(mapWindow.getMap().getVisibleRegion());
-                if (visibleRegion == null) {
-                    Log.e("MainActivity", "Visible region is null");
-                    Toast.makeText(this, "Ошибка: Видимая область карты недоступна", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                searchSession = searchManager.submit(
-                        query,
-                        visibleRegion,
-                        new SearchOptions(),
-                        this
-                );
-                Log.d("MainActivity", "Search query submitted: " + query);
-            } else {
-                Log.e("MainActivity", "MapWindow or Map is null during submitQuery");
-                Toast.makeText(this, "Ошибка карты: MapWindow недоступен", Toast.LENGTH_SHORT).show();
-            }
-        } else {
-            Log.e("MainActivity", "MapView is null during submitQuery");
-            Toast.makeText(this, "Ошибка карты: MapView недоступен", Toast.LENGTH_SHORT).show();
+        if (mapView == null || mapView.getMapWindow() == null) {
+            Log.e("MainActivity", "MapView or MapWindow is null");
+            Toast.makeText(this, "Ошибка карты", Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        com.yandex.mapkit.map.Map map = mapView.getMapWindow().getMap();
+
+        if (map == null) {
+            Log.e("MainActivity", "Map is null");
+            return;
+        }
+
+        VisibleRegion visibleRegion = map.getVisibleRegion();
+
+        if (visibleRegion == null) {
+            Log.e("MainActivity", "Visible region is null");
+            Toast.makeText(this, "Ошибка: область карты недоступна", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Geometry geometry = Geometry.fromBoundingBox(
+                new BoundingBox(
+                        visibleRegion.getBottomLeft(),
+                        visibleRegion.getTopRight()
+                )
+        );
+
+        searchSession = searchManager.submit(
+                query,
+                geometry,
+                new SearchOptions(),
+                this
+        );
+
+        Log.d("MainActivity", "Search query submitted: " + query);
     }
 
     /**
