@@ -45,15 +45,15 @@ services:
       DATABASE_DSN: "user=postgres password=postgres host=db port=5432 dbname=yousightseeing sslmode=disable"
       HTTP_ADDRESS: ":8080"
       LOG_LEVEL: "DEBUG"
-      GOOGLE_CLIENT_ID: "google-client-key"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
       ACCESS_SECRET: "super-access-safe-secret-key"
       ACCESS_DURATION: "15m"
       REFRESH_SECRET: "super-refresh-safe-secret-key"
       REFRESH_DURATION: "1h"
-      ORS_API_KEY: "ors-api-key"
-      GEOPIFY_API_KEY: ""
+      ORS_API_KEY: "${ORS_API_KEY}"
+      GEOPIFY_API_KEY: "${GEOPIFY_API_KEY}"
     ports:
-      - "8080:8080"
+      - "8081:8080"
 
 volumes:
   pgdata:

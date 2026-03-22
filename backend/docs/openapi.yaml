@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: YouSightseeing API
   description: API для туристического приложения (поиск мест, построение маршрутов, профиль)
-  version: "1.0.0"
+  version: "1.1.0"
 
 tags:
   - name: Auth
@@ -12,7 +12,7 @@ tags:
   - name: Routes
     description: Построение маршрутов
   - name: Places
-    description: Поиск достопримечательностей (прокси к Geopify)
+    description: Поиск точек интереса через Geoapify
 
 components:
   securitySchemes:
@@ -22,17 +22,14 @@ components:
       bearerFormat: JWT
 
   schemas:
-    # --- ОШИБКИ ---
     ErrorResponse:
       type: object
-      required: [ error ]
+      required: [error]
       properties:
         error:
           type: string
           description: Текст ошибки
 
-
-    # --- МОДЕЛИ ---
     User:
       type: object
       properties:
@@ -45,6 +42,7 @@ components:
           example: "10769150350006150715113082367"
         email:
           type: string
+          format: email
           example: "kirpich@example.com"
         full_name:
           type: string
@@ -77,13 +75,20 @@ components:
           format: date-time
           example: "2025-12-09T10:00:00Z"
 
+    GetUserResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+
     GoogleAuthRequest:
       type: object
       required: [google_token]
       properties:
         google_token:
           type: string
-          description: "Токен, полученный от Google Sign-In на клиенте"
+          description: Токен, полученный от Google Sign-In на клиенте
           example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjNmZThhMDEyNzYyNjU5M2Q5YzRmZWU2NjE3ZjU3Z..."
 
     GoogleAuthResponse:
@@ -91,11 +96,11 @@ components:
       properties:
         access_token:
           type: string
-          description: "JWT токен доступа"
+          description: JWT токен доступа
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         refresh_token:
           type: string
-          description: "Refresh токен для обновления access_token"
+          description: Refresh токен для обновления access_token
           example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
         user:
           $ref: '#/components/schemas/User'
@@ -106,7 +111,7 @@ components:
       properties:
         refresh_token:
           type: string
-          description: "Действующий refresh токен пользователя"
+          description: Действующий refresh токен пользователя
           example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
 
     RefreshTokenResponse:
@@ -114,11 +119,11 @@ components:
       properties:
         access_token:
           type: string
-          description: "JWT токен доступа"
+          description: JWT токен доступа
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         refresh_token:
           type: string
-          description: "Новый refresh токен"
+          description: Новый refresh токен
           example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
         user:
           $ref: '#/components/schemas/User'
@@ -129,7 +134,7 @@ components:
       properties:
         refresh_token:
           type: string
-          description: "Действующий refresh токен пользователя"
+          description: Действующий refresh токен пользователя
           example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
 
     LogoutResponse:
@@ -149,6 +154,7 @@ components:
       properties:
         email:
           type: string
+          format: email
           example: "shishi@example.com"
         full_name:
           type: string
@@ -184,7 +190,7 @@ components:
         picture:
           type: string
           format: uri
-          description: Set empty string to delete
+          description: Передайте пустую строку, чтобы удалить изображение
           example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
 
     UpdateUserPictureResponse:
@@ -200,58 +206,141 @@ components:
         user:
           $ref: '#/components/schemas/User'
 
+    Coordinate:
+      type: array
+      minItems: 2
+      maxItems: 2
+      items:
+        type: number
+        format: double
+      description: Координата в формате [lon, lat]
+      example: [37.6176, 55.7558]
+
     RouteRequest:
       type: object
+      required: [coordinates]
       properties:
         coordinates:
           type: array
+          minItems: 2
           items:
-            type: array
-            minItems: 2
-            maxItems: 2
-            items:
-              type: number
-              format: double
-          description: Array of [lon, lat] pairs
+            $ref: '#/components/schemas/Coordinate'
+          description: Массив точек маршрута в формате [lon, lat]
         profile:
           type: string
+          description: Профиль маршрута. Сейчас в backend фактически используется foot-walking
+          example: foot-walking
         preference:
           type: string
+          description: Предпочтение маршрута. Поле зарезервировано под дальнейшее расширение
+          example: recommended
         optimize_order:
           type: boolean
-      required: [ coordinates, profile ]
+          description: Оптимизировать порядок точек перед отправкой в ORS
+          example: true
 
     RouteResponse:
       type: object
+      required: [points, distance, duration]
       properties:
         points:
           type: array
+          description: Геометрия маршрута в формате [lon, lat]
           items:
-            type: array
-            minItems: 2
-            maxItems: 2
-            items:
-              type: number
-              format: double
-          description: Route geometry as [lon, lat] pairs
+            $ref: '#/components/schemas/Coordinate'
         distance:
           type: number
           format: double
+          description: Длина маршрута в метрах
+          example: 3240.5
         duration:
           type: number
           format: double
-      required: [ points, distance, duration ]
+          description: Оценочное время маршрута в секундах
+          example: 2715.3
+
+    SearchPlacesRequest:
+      type: object
+      required: [lat, lon, radius, categories]
+      properties:
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: Широта центра поиска
+          example: 55.7558
+        lon:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: Долгота центра поиска
+          example: 37.6176
+        radius:
+          type: integer
+          minimum: 1
+          description: Радиус поиска в метрах
+          example: 1500
+        categories:
+          type: array
+          description: |
+            Категории Geoapify. Если поле передано пустым, backend подставляет
+            значения по умолчанию: tourism.sights и catering.cafe.
+          items:
+            type: string
+          example:
+            - tourism.sights
+            - catering.cafe
+        limit:
+          type: integer
+          minimum: 1
+          description: Максимальное количество возвращаемых точек. По умолчанию backend использует 20
+          example: 10
+
+    Place:
+      type: object
+      required: [name, categories, coordinates, place_id]
+      properties:
+        name:
+          type: string
+          description: Имя точки для отображения
+          example: Saint Basil's Cathedral
+        address:
+          type: string
+          description: Адрес одной строкой
+          example: Red Square, Moscow, Russia
+        categories:
+          type: array
+          description: Категории, относящиеся к точке
+          items:
+            type: string
+          example:
+            - tourism.sights
+            - religion.church
+        coordinates:
+          $ref: '#/components/schemas/Coordinate'
+        place_id:
+          type: string
+          description: Уникальный идентификатор места во внешнем провайдере
+          example: 51f6f7d3a1f4e23f9b3b7c1a8e4b1234567890ab
+
+    SearchPlacesResponse:
+      type: object
+      required: [places]
+      properties:
+        places:
+          type: array
+          items:
+            $ref: '#/components/schemas/Place'
 
 paths:
-  # ==========================
-  # АВТОРИЗАЦИЯ
-  # ==========================
   /auth/google:
     post:
       tags: [Auth]
       security: []
       summary: Вход через Google
-      description: "Создает нового пользователя или авторизует существующего через Google ID Token"
+      description: Создает нового пользователя или авторизует существующего через Google ID Token
       operationId: authGoogle
       requestBody:
         required: true
@@ -301,7 +390,7 @@ paths:
       tags: [Auth]
       security: []
       summary: Обновление токенов
-      description: "Получает новый Access Token по валидному Refresh Token"
+      description: Получает новый access token по валидному refresh token
       operationId: authRefresh
       requestBody:
         required: true
@@ -346,7 +435,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 not_found:
-                  value: { error: "refresh token not found"}
+                  value: { error: "refresh token not found" }
         '500':
           description: Внутренняя ошибка сервера
           content:
@@ -364,7 +453,7 @@ paths:
       tags: [Auth]
       security: []
       summary: Выход из системы
-      description: "Отзывает указанный Refresh Token, делая его невалидным."
+      description: Отзывает указанный refresh token, делая его невалидным
       operationId: authLogout
       requestBody:
         required: true
@@ -409,7 +498,6 @@ paths:
                 revoke:
                   value: { error: "failed to revoke refresh token" }
 
-
   /api/users/me:
     get:
       tags: [Users]
@@ -418,22 +506,11 @@ paths:
         - BearerAuth: []
       responses:
         '200':
-          description: "Информация о текущем пользователе"
+          description: Информация о текущем пользователе
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '400':
-          description: Некорректный запрос
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
-                invalid_user_id:
-                  value: { error: "invalid user id" }
+                $ref: '#/components/schemas/GetUserResponse'
         '401':
           description: Требуется авторизация
           content:
@@ -462,11 +539,11 @@ paths:
                 get:
                   value: { error: "failed to get user" }
 
-    post:
-      tags: [ Users ]
+    patch:
+      tags: [Users]
       summary: Обновить информацию о текущем пользователе
       security:
-        - BearerAuth: [ ]
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -475,7 +552,7 @@ paths:
               $ref: '#/components/schemas/UpdateUserRequest'
       responses:
         '200':
-          description: "Информация о текущем пользователе обновлена"
+          description: Информация о текущем пользователе обновлена
           content:
             application/json:
               schema:
@@ -489,8 +566,6 @@ paths:
               examples:
                 invalid_json:
                   value: { error: "invalid json" }
-                invalid_user_id:
-                  value: { error: "invalid user id" }
         '401':
           description: Требуется авторизация
           content:
@@ -516,17 +591,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
-                get:
-                  value: { error: "failed to get user" }
                 update:
                   value: { error: "failed to update user" }
 
   /api/users/me/picture:
-    post:
-      tags: [ Users ]
+    put:
+      tags: [Users]
       summary: Обновить фотографию текущего пользователя
       security:
-        - BearerAuth: [ ]
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -535,7 +608,7 @@ paths:
               $ref: '#/components/schemas/UpdateUserPictureRequest'
       responses:
         '200':
-          description: "Фотография текущего пользователе обновлена"
+          description: Фотография текущего пользователя обновлена
           content:
             application/json:
               schema:
@@ -549,8 +622,6 @@ paths:
               examples:
                 invalid_json:
                   value: { error: "invalid json" }
-                invalid_user_id:
-                  value: { error: "invalid user id" }
         '401':
           description: Требуется авторизация
           content:
@@ -576,20 +647,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
-                get:
-                  value: { error: "failed to get user"}
                 update_picture:
-                  value: { error: "failed to update user's picture"}
+                  value: { error: "failed to update user's picture" }
 
-  # ==========================
-  #  # МАРШРУТЫ
-  #  # ==========================
   /api/routes/calculate:
     post:
-      tags: [ Routes ]
+      tags: [Routes]
       summary: Получить готовый маршрут
       security:
-        - BearerAuth: [ ]
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -598,7 +664,7 @@ paths:
               $ref: '#/components/schemas/RouteRequest'
       responses:
         '200':
-          description: "Информация о маршруте"
+          description: Информация о маршруте
           content:
             application/json:
               schema:
@@ -612,8 +678,8 @@ paths:
               examples:
                 invalid_json:
                   value: { error: "invalid json" }
-                invalid_user_id:
-                  value: { error: "invalid user id" }
+                invalid_route_points:
+                  value: { error: "invalid route points" }
         '401':
           description: Требуется авторизация
           content:
@@ -632,3 +698,86 @@ paths:
               examples:
                 ors:
                   value: { error: "failed to calculate route" }
+
+  /api/places/search:
+    post:
+      tags: [Places]
+      summary: Поиск точек интереса рядом с координатами
+      description: |
+        Выполняет поиск точек интереса через Geoapify по центру поиска,
+        радиусу и набору категорий. Эндпоинт требует авторизацию и
+        возвращает уже нормализованный список мест для клиента.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchPlacesRequest'
+            examples:
+              sightseeing:
+                summary: Поиск достопримечательностей и кафе
+                value:
+                  lat: 55.7558
+                  lon: 37.6176
+                  radius: 1500
+                  categories:
+                    - tourism.sights
+                    - catering.cafe
+                  limit: 10
+      responses:
+        '200':
+          description: Список найденных точек интереса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchPlacesResponse'
+              examples:
+                success:
+                  value:
+                    places:
+                      - name: Saint Basil's Cathedral
+                        address: Red Square, Moscow, Russia
+                        categories:
+                          - tourism.sights
+                          - religion.church
+                        coordinates: [37.6231, 55.7525]
+                        place_id: "51f6f7d3a1f4e23f9b3b7c1a8e4b1234567890ab"
+                      - name: Bosco Cafe
+                        address: Red Square, 3, Moscow, Russia
+                        categories:
+                          - catering.cafe
+                        coordinates: [37.6217, 55.7542]
+                        place_id: "51a9dd63c4ff99887766554433221100abcdef12"
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_json:
+                  value: { error: "invalid json" }
+                invalid_coordinates:
+                  value: { error: "invalid coordinates" }
+                invalid_radius:
+                  value: { error: "invalid search radius" }
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth:
+                  value: { error: "Authorization header required" }
+        '500':
+          description: Внутренняя ошибка сервера или ошибка провайдера мест
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                search_failed:
+                  value: { error: "failed to search places" }
