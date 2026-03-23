@@ -293,7 +293,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             awaitingAutoStartPoint = false;
             isGeneratingAutoRoute = false;
             // УБИРАЕМ АВТОМАТИЧЕСКОЕ routeMode = true, чтобы нельзя было просто так тыкать карту
-            routeMode = false;
+            routeMode = true;
         } else if (mode == RouteBuildMode.AUTO) {
             manualStartPointMode = false;
             routeMode = false;
@@ -1422,7 +1422,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         updateBottomSheetState();
 
         if (currentRoute != null) {
-            buildOptimalRoute();
+            clearCurrentRouteOnly(); // 💥 сначала удалить старый
+            buildOptimalRoute();     // потом построить новый
         }
     }
 
@@ -1463,7 +1464,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             awaitingAutoStartPoint = false;
             startPoint = point;
             lastPoiCenter = point;
-            
+
             showStartPoint(startPoint);
 
             updateStartHeader();
@@ -1480,7 +1481,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             lastPoiCenter = point;
             manualStartPointMode = false;
             routeMode = true;
-            
+
             showStartPoint(startPoint);
 
             Toast.makeText(this, "Стартовая точка выбрана", Toast.LENGTH_SHORT).show();
@@ -1499,12 +1500,13 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             return;
         }
 
-        if (!routeMode) return;
-
+        if (!manualStartPointMode && !awaitingAutoStartPoint && currentBuildMode == RouteBuildMode.AUTO) {
+            return;
+        }
         if (poiMarkers.isEmpty()) {
             startPoint = point;
             lastPoiCenter = point;
-            
+
             showStartPoint(startPoint);
 
             Toast.makeText(this, "🔍 Ищем POI вокруг точки...", Toast.LENGTH_SHORT).show();
@@ -1784,7 +1786,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         // manualStartPointMode = false;
         // selectedMarkers.clear();
         // selectedPoints.clear();
-        
+
         poiMode = false;
         routeMode = false;
         awaitingAutoStartPoint = false;
@@ -1818,6 +1820,12 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 mapObjects.remove(marker);
                 poiMarkers.remove(marker);
             }
+
+            // 🔥 удалить кастомные точки
+            for (PlacemarkMapObject marker : customMarkers) {
+                mapObjects.remove(marker);
+            }
+            customMarkers.clear();
 
             if (routeLine != null) {
                 mapObjects.remove(routeLine);
