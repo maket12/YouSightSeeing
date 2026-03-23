@@ -569,16 +569,12 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             toggleRouteMode.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
                 if (!isChecked) return;
 
-                if (currentRoute != null && checkedId == R.id.btnModeAuto) {
-                    Toast.makeText(this, "Сбросьте маршрут, чтобы построить автоматически", Toast.LENGTH_SHORT).show();
-                    group.check(R.id.btnModeManual);
-                    return;
-                }
+                boolean hasManualData = currentRoute != null || !selectedPoints.isEmpty() || startPoint != null;
 
-                if (checkedId == R.id.btnModeAuto && !selectedPoints.isEmpty() && currentRoute == null) {
+                if (checkedId == R.id.btnModeAuto && hasManualData) {
                     new AlertDialog.Builder(this)
                             .setTitle("Очистить маршрут?")
-                            .setMessage("При переходе в автоматический режим ваши добавленные точки будут удалены. Вы хотите продолжить?")
+                            .setMessage("При переходе в автоматический режим текущий маршрут и выбранные точки будут удалены. Вы хотите продолжить?")
                             .setPositiveButton("Да", (dialog, which) -> {
                                 fullResetRoute();
                                 applyBuildModeUI(RouteBuildMode.AUTO);
@@ -809,6 +805,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     startPoint = userLocation;
                     lastPoiCenter = userLocation;
                     awaitingAutoStartPoint = false;
+                    
+                    showStartPoint(startPoint);
 
                     updateStartHeader();
                     updateBuildRouteButton();
@@ -1005,6 +1003,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void displayGeneratedRoute(RouteApi.GeneratedRouteResult result) {
         selectedMarkers.clear();
         selectedPoints.clear();
+
+        if (startPoint != null) {
+            showStartPoint(startPoint);
+        }
 
         if (result.places != null) {
             displayGeneratedPlaces(result.places);
@@ -1321,9 +1323,12 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
         for (PlacemarkMapObject marker : poiMarkers) {
-            mapObjects.remove(marker);
+            if (!selectedMarkers.contains(marker)) { // не удаляем выбранные
+                mapObjects.remove(marker);
+            }
         }
-        poiMarkers.clear();
+        // Оставляем в poiMarkers только те, что сейчас выбраны
+        poiMarkers.retainAll(selectedMarkers);
     }
 
     private void buildRouteAroundUser() {
@@ -1351,6 +1356,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                             // ✅ Стартовая точка = геопозиция, но в план не добавляем
                             startPoint = userLocation;
                             lastPoiCenter = userLocation;
+                            
+                            showStartPoint(startPoint);
 
                             for (GeoapifyClient.Place place : places) {
                                 if (place.location != null && distanceInMeters(userLocation, place.location) <= 5000) {
@@ -1456,6 +1463,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             awaitingAutoStartPoint = false;
             startPoint = point;
             lastPoiCenter = point;
+            
+            showStartPoint(startPoint);
 
             updateStartHeader();
             updateBuildRouteButton();
@@ -1471,6 +1480,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             lastPoiCenter = point;
             manualStartPointMode = false;
             routeMode = true;
+            
+            showStartPoint(startPoint);
 
             Toast.makeText(this, "Стартовая точка выбрана", Toast.LENGTH_SHORT).show();
 
@@ -1493,6 +1504,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (poiMarkers.isEmpty()) {
             startPoint = point;
             lastPoiCenter = point;
+            
+            showStartPoint(startPoint);
 
             Toast.makeText(this, "🔍 Ищем POI вокруг точки...", Toast.LENGTH_SHORT).show();
 
@@ -1617,24 +1630,21 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             return;
         }
 
-        final double RADIUS_METERS = 5000;
-        List<Point> filteredPoints = new ArrayList<>();
-
+        // В ручном режиме мы не отсеиваем точки по радиусу, строим по всем выбранным
+        List<Point> pointsToOptimize = new ArrayList<>();
+        pointsToOptimize.add(startPoint);
+        
         for (Point p : selectedPoints) {
-            double distance = distanceInMeters(startPoint, p);
-            if (distance <= RADIUS_METERS) {
-                filteredPoints.add(p);
+            // Исключаем стартовую точку из списка, так как она уже добавлена первой
+            if (distanceInMeters(startPoint, p) > 5.0) {
+                pointsToOptimize.add(p);
             }
         }
 
-        if (filteredPoints.size() < 2) {
-            Toast.makeText(this, "Слишком мало точек в радиусе " + (int)(RADIUS_METERS/1000) + " км", Toast.LENGTH_LONG).show();
+        if (pointsToOptimize.size() < 2) {
+            Toast.makeText(this, "Недостаточно уникальных точек для построения маршрута", Toast.LENGTH_LONG).show();
             return;
         }
-
-        // Добавляем стартовую точку в начало маршрута
-        List<Point> pointsToOptimize = new ArrayList<>(filteredPoints);
-        pointsToOptimize.add(0, startPoint);
 
         Toast.makeText(this, "Построение оптимального маршрута...", Toast.LENGTH_LONG).show();
 
@@ -1797,7 +1807,18 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void fullResetRoute() {
         if (mapView != null && mapView.getMapWindow() != null) {
             MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-            for (PlacemarkMapObject marker : poiMarkers) mapObjects.remove(marker);
+            
+            // Не удаляем результат поиска, если он есть
+            List<PlacemarkMapObject> markersToRemove = new ArrayList<>();
+            for (PlacemarkMapObject marker : poiMarkers) {
+                markersToRemove.add(marker);
+            }
+            
+            for (PlacemarkMapObject marker : markersToRemove) {
+                mapObjects.remove(marker);
+                poiMarkers.remove(marker);
+            }
+
             if (routeLine != null) {
                 mapObjects.remove(routeLine);
                 routeLine = null;
@@ -2100,7 +2121,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         MapWindow mapWindow = mapView.getMapWindow();
         MapObjectCollection mapObjects = mapWindow.getMap().getMapObjects();
-        mapObjects.clear();
+        // Мы НЕ очищаем полностью mapObjects, иначе удалятся POI и маршруты
+        // mapObjects.clear(); 
 
         GeoObjectCollection.Item firstResult = null;
         if (!response.getCollection().getChildren().isEmpty()) {
@@ -2118,6 +2140,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     Toast.makeText(this, "Ошибка загрузки иконки метки", Toast.LENGTH_SHORT).show();
                 }
 
+                // Просто добавим на карту маркер, не удаляя старые данные
                 PlacemarkMapObject placemark = mapObjects.addPlacemark(resultLocation);
                 if (searchResultImageProvider != null) {
                     try {
