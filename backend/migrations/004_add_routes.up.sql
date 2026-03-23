@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS routes (
     start_longitude DOUBLE PRECISION NOT NULL,
 
     distance INT NOT NULL DEFAULT 0,
-    duration INTERVAL NOT NULL,
+    duration INT NOT NULL DEFAULT 0,  -- in seconds
 
     categories TEXT[] NOT NULL,
     max_places INT NOT NULL,

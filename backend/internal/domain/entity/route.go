@@ -15,8 +15,8 @@ type Route struct {
 	StartLatitude  float64 `db:"start_latitude"`
 	StartLongitude float64 `db:"start_longitude"`
 
-	Distance int64         `db:"distance"`
-	Duration time.Duration `db:"duration"`
+	Distance int64 `db:"distance"`
+	Duration int   `db:"duration"` // in seconds
 
 	Categories  pq.StringArray `db:"categories"`
 	MaxPlaces   int            `db:"max_places"`
