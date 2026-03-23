@@ -9,6 +9,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/labstack/echo/v4 v4.13.4
+	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggest/swgui v1.8.5
 	golang.org/x/oauth2 v0.33.0
