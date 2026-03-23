@@ -38,7 +38,7 @@ func NewRouteCalculator(apiKey string) *RouteCalculator {
 	}
 }
 
-func (a *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequest) (*entity.Route, error) {
+func (a *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequest) (*entity.ORSRoute, error) {
 	reqBodyResponse, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal ORS request: %w", err)
@@ -74,7 +74,7 @@ func (a *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequ
 
 	feature := raw.Features[0]
 
-	return &entity.Route{
+	return &entity.ORSRoute{
 		Geometry: feature.Geometry.Coordinates,
 		Distance: feature.Properties.Summary.Distance,
 		Duration: feature.Properties.Summary.Duration,
