@@ -95,6 +95,7 @@ func main() {
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 	searchPlacesUC := usecase.NewSearchPlacesUC(placesService)
+	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -107,7 +108,7 @@ func main() {
 		logger, getUserUC,
 		updateUserUC, updateUserPicUC,
 	)
-	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC)
+	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
 
 	// ======================
