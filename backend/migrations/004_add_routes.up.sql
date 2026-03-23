@@ -3,8 +3,8 @@ CREATE TABLE IF NOT EXISTS routes (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(64) NOT NULL,
 
-    start_lat DOUBLE PRECISION NOT NULL,
-    start_lon DOUBLE PRECISION NOT NULL,
+    start_latitude DOUBLE PRECISION NOT NULL,
+    start_longitude DOUBLE PRECISION NOT NULL,
 
     distance INT NOT NULL DEFAULT 0,
     duration INTERVAL NOT NULL,
