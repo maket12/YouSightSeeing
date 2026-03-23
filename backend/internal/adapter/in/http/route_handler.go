@@ -11,14 +11,20 @@ import (
 )
 
 type RouteHandler struct {
-	log     *slog.Logger
-	RouteUC usecase.CalculateRouteUseCase
+	log             *slog.Logger
+	RouteUC         usecase.CalculateRouteUseCase
+	GenerateRouteUC usecase.GenerateRouteUseCase
 }
 
-func NewRouteHandler(log *slog.Logger, uc usecase.CalculateRouteUseCase) *RouteHandler {
+func NewRouteHandler(
+	log *slog.Logger,
+	routeUC usecase.CalculateRouteUseCase,
+	generateRouteUC usecase.GenerateRouteUseCase,
+) *RouteHandler {
 	return &RouteHandler{
-		log:     log,
-		RouteUC: uc,
+		log:             log,
+		RouteUC:         routeUC,
+		GenerateRouteUC: generateRouteUC,
 	}
 }
 
@@ -35,6 +41,29 @@ func (h *RouteHandler) CalculateRoute(c echo.Context) error {
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
 		h.log.ErrorContext(c.Request().Context(), "failed to calculate route",
+			slog.Int("status", status),
+			slog.String("public_msg", msg),
+			slog.Any("cause", internalErr),
+		)
+		return c.JSON(status, map[string]string{"error": msg})
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (h *RouteHandler) GenerateRoute(c echo.Context) error {
+	var req dto.GenerateRouteRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid json",
+		})
+	}
+
+	resp, err := h.GenerateRouteUC.Execute(c.Request().Context(), req)
+	if err != nil {
+		status, msg, internalErr := HttpError(err)
+		h.log.ErrorContext(c.Request().Context(), "failed to generate route",
 			slog.Int("status", status),
 			slog.String("public_msg", msg),
 			slog.Any("cause", internalErr),

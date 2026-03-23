@@ -36,3 +36,7 @@ type CalculateRouteUseCase interface {
 type SearchPlacesUseCase interface {
 	Execute(ctx context.Context, req dto.SearchPlacesRequest) (dto.SearchPlacesResponse, error)
 }
+
+type GenerateRouteUseCase interface {
+	Execute(ctx context.Context, req dto.GenerateRouteRequest) (dto.GenerateRouteResponse, error)
+}

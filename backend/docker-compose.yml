@@ -39,21 +39,21 @@ services:
     build: .
     container_name: yousightseeing_api
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     environment:
       DATABASE_DSN: "user=postgres password=postgres host=db port=5432 dbname=yousightseeing sslmode=disable"
       HTTP_ADDRESS: ":8080"
       LOG_LEVEL: "DEBUG"
-      GOOGLE_CLIENT_ID: "google-client-key"
       ACCESS_SECRET: "super-access-safe-secret-key"
       ACCESS_DURATION: "15m"
       REFRESH_SECRET: "super-refresh-safe-secret-key"
       REFRESH_DURATION: "1h"
-      ORS_API_KEY: "ors-api-key"
-      GEOPIFY_API_KEY: ""
+      GOOGLE_CLIENT_ID: "724221636509-15a91ov9eb4r0biddvd8eh6ah0bl8u0e.apps.googleusercontent.com"
+      ORS_API_KEY: "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjJhY2NjOTRmZTEyNjQ4NzA5MjZhNzg3ZjZjMThhMzc5IiwiaCI6Im11cm11cjY0In0="
+      GEOPIFY_API_KEY: "ec2ae411eec74769b9fb5f681e36bf7d"
     ports:
-      - "8080:8080"
+      - "8081:8080"
 
 volumes:
   pgdata:
