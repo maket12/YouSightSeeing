@@ -54,7 +54,7 @@ func (s *UserRepositoryTestSuite) TearDownSuite() {
 }
 
 func (s *UserRepositoryTestSuite) setupDatabase() {
-	_, err := s.db.Exec("DROP TABLE IF EXISTS users")
+	_, err := s.db.Exec("DROP TABLE IF EXISTS users CASCADE")
 	require.NoError(s.T(), err)
 
 	createTableSQL := `

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"lib/pq"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
