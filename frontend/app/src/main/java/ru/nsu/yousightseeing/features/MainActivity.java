@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.Toast;
@@ -19,6 +20,8 @@ import com.google.android.gms.location.LocationServices;
 
 import ru.nsu.yousightseeing.BuildConfig;
 import ru.nsu.yousightseeing.R;
+import ru.nsu.yousightseeing.api.PlacesApi;
+import ru.nsu.yousightseeing.api.RouteApi;
 import ru.nsu.yousightseeing.model.Route;
 import ru.nsu.yousightseeing.utils.RouteOptimizer;
 import com.yandex.mapkit.Animation;
@@ -61,6 +64,8 @@ import android.widget.TextView;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.slider.Slider;
 import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 
 public class MainActivity extends AppCompatActivity implements Session.SearchListener {
 
@@ -81,7 +86,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
     private UserLocationLayer userLocationLayer;
 
-    private Button btnSelectStartPoint;
     private boolean manualStartPointMode = false; // режим выбора стартовой точки
 
     private final Set<PlacemarkMapObject> selectedMarkers = new HashSet<>();
@@ -106,6 +110,29 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private int currentPointIndex = 0;
     private boolean routeMode = false;
     private boolean poiMode = false;
+    private enum RouteBuildMode {
+        NONE,
+        MANUAL,
+        AUTO
+    }
+
+    private RouteBuildMode currentBuildMode = RouteBuildMode.NONE;
+
+    private boolean awaitingAutoStartPoint = false;
+    private boolean isGeneratingAutoRoute = false;
+
+    private static final int DEFAULT_RADIUS_METERS = 5000;
+    private static final int DEFAULT_MAX_PLACES = 5;
+    private MaterialButtonToggleGroup toggleRouteMode;
+    private MaterialButton btnModeManual;
+    private MaterialButton btnModeAuto;
+
+    private LinearLayout manualSection;
+    private LinearLayout autoSection;
+
+    private EditText etAutoRadius;
+    private Slider sliderMaxPlaces;
+    private TextView tvMaxPlacesValue;
     private List<Point> selectedPoints = new ArrayList<>();
     private List<PlacemarkMapObject> poiMarkers = new ArrayList<>();
     private final List<PlacemarkMapObject> customMarkers = new ArrayList<>();
@@ -159,26 +186,50 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      */
     private void initializeUI() {
         mapView = findViewById(R.id.mapView);
+
         editCity = findViewById(R.id.editCity);
         btnSearch = findViewById(R.id.btnSearch);
+
         btnZoomIn = findViewById(R.id.btnZoomIn);
         btnZoomOut = findViewById(R.id.btnZoomOut);
+
         btnProfile = findViewById(R.id.btnProfile);
         btnBuildRoute = findViewById(R.id.btnBuildRoute);
         btnEditCategories = findViewById(R.id.btnEditCategories);
         btnAddPlace = findViewById(R.id.btnAddPlace);
         btnOpenProfile = findViewById(R.id.btnOpenProfile);
+        btnChangeStart = findViewById(R.id.btnChangeStart);
+
+        toggleRouteMode = findViewById(R.id.toggleRouteMode);
+        btnModeManual = findViewById(R.id.btnModeManual);
+        btnModeAuto = findViewById(R.id.btnModeAuto);
+
+        manualSection = findViewById(R.id.manualSection);
+        autoSection = findViewById(R.id.autoSection);
 
         bottomSheet = findViewById(R.id.bottomSheet);
         placesContainer = findViewById(R.id.placesContainer);
-        sliderDurationHours = findViewById(R.id.sliderDurationHours);
-        switchSnack = findViewById(R.id.switchSnack);
+
         tvStartTitle = findViewById(R.id.tvStartTitle);
         tvStartSubtitle = findViewById(R.id.tvStartSubtitle);
-        btnChangeStart = findViewById(R.id.btnChangeStart);
 
-        tvStartTitle.setOnClickListener(v -> enableStartPointSelection());
-        tvStartSubtitle.setOnClickListener(v -> enableStartPointSelection());
+        etAutoRadius = findViewById(R.id.etAutoRadius);
+        sliderMaxPlaces = findViewById(R.id.sliderMaxPlaces);
+        tvMaxPlacesValue = findViewById(R.id.tvMaxPlacesValue);
+
+        // Оставлен в XML скрытым для совместимости
+        sliderDurationHours = findViewById(R.id.sliderDurationHours);
+
+        switchSnack = findViewById(R.id.switchSnack);
+
+        // Убираем возможность кликать по тексту
+        if (tvStartTitle != null) {
+            tvStartTitle.setOnClickListener(null);
+        }
+
+        if (tvStartSubtitle != null) {
+            tvStartSubtitle.setOnClickListener(null);
+        }
 
         if (bottomSheet != null) {
             bottomSheetBehavior = BottomSheetBehavior.from(bottomSheet);
@@ -187,59 +238,111 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
         }
 
+        if (etAutoRadius != null && etAutoRadius.getText().toString().trim().isEmpty()) {
+            etAutoRadius.setText(String.valueOf(DEFAULT_RADIUS_METERS));
+        }
+
+        if (sliderMaxPlaces != null) {
+            sliderMaxPlaces.setValue(DEFAULT_MAX_PLACES);
+        }
+
+        if (tvMaxPlacesValue != null) {
+            tvMaxPlacesValue.setText(String.valueOf(DEFAULT_MAX_PLACES));
+        }
 
         orsClient = new OpenRouteServiceClient();
 
-        // Инициализация карты ПЕРЕД GPS!
         if (mapView != null) {
-            initializeMap();  // MapKit + InputListener готов
-            checkAndRequestLocation();  // GPS + fallbackToMoscow()
+            initializeMap();
+            checkAndRequestLocation();
         } else {
             Toast.makeText(this, "Ошибка инициализации MapView", Toast.LENGTH_LONG).show();
             Log.e("MainActivity", "MapView is null");
         }
 
-        // Обработчики кнопок ПОСЛЕ всего
+        // Режим по умолчанию — ручной
+        currentBuildMode = RouteBuildMode.MANUAL;
+
+        if (toggleRouteMode != null) {
+            toggleRouteMode.check(R.id.btnModeManual);
+        }
+
+        applyBuildModeUI(RouteBuildMode.MANUAL);
+
         setupButtonListeners();
         updateSelectedPlacesList();
         updateBottomSheetState();
         updateStartHeader();
+        updateBuildRouteButton();
+        updateEditCategoriesButton();
+        collapseBottomSheet();
+    }
+
+    private void applyBuildModeUI(RouteBuildMode mode) {
+        currentBuildMode = mode;
+
+        if (manualSection != null) {
+            manualSection.setVisibility(mode == RouteBuildMode.MANUAL ? View.VISIBLE : View.GONE);
+        }
+
+        if (autoSection != null) {
+            autoSection.setVisibility(mode == RouteBuildMode.AUTO ? View.VISIBLE : View.GONE);
+        }
+
+        if (mode == RouteBuildMode.MANUAL) {
+            awaitingAutoStartPoint = false;
+            isGeneratingAutoRoute = false;
+            // УБИРАЕМ АВТОМАТИЧЕСКОЕ routeMode = true, чтобы нельзя было просто так тыкать карту
+            routeMode = false;
+        } else if (mode == RouteBuildMode.AUTO) {
+            manualStartPointMode = false;
+            routeMode = false;
+            poiMode = false;
+        }
+
+        updateBuildRouteButton();
+        updateBottomSheetState();
     }
 
     private void enableStartPointSelection() {
-        // Нельзя менять, если старт ещё не выбран и геолокации нет
-        if (startPoint == null && userLocation == null) {
+        collapseBottomSheet();
+
+        if (currentBuildMode == RouteBuildMode.AUTO) {
+            if (userLocation != null) {
+                showAutomaticRouteStartDialog();
+            } else {
+                awaitingAutoStartPoint = true;
+                manualStartPointMode = false;
+                routeMode = false;
+
+                Toast.makeText(this,
+                        "Тапните по карте, чтобы выбрать стартовую точку",
+                        Toast.LENGTH_LONG).show();
+            }
+
+            updateBuildRouteButton();
+            return;
+        }
+
+        if (userLocation != null) {
+            showManualRouteStartDialog();
+        } else {
+            manualStartPointMode = true;
+            awaitingAutoStartPoint = false;
+            routeMode = true;
+
             Toast.makeText(this,
-                    "Сначала задайте отправную точку кнопкой \"Построить маршрут\"",
+                    "Тапните по карте, чтобы выбрать стартовую точку",
                     Toast.LENGTH_LONG).show();
-            return;
         }
 
-        // Если старт ещё не выбран, но есть геолокация — сначала покажем выбор
-        if (startPoint == null && userLocation != null) {
-            showRouteStartDialog();
-            return;
-        }
-
-        manualStartPointMode = true;
-        routeMode = true;
-
-        Toast.makeText(this,
-                "Тапните по карте, чтобы изменить стартовую точку",
-                Toast.LENGTH_LONG).show();
+        updateBuildRouteButton();
     }
 
     private void updateBottomSheetState() {
         if (bottomSheetBehavior == null) return;
 
         if (currentRoute != null) {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-            return;
-        }
-
-        if (routeMode) {
-            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
-        } else {
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
         }
     }
@@ -344,7 +447,14 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             tvStartTitle.setText("Укажите отправную точку...");
             tvStartSubtitle.setText("");
             tvStartSubtitle.setAlpha(0.0f);
+            if (btnChangeStart != null) {
+                btnChangeStart.setVisibility(View.GONE);
+            }
             return;
+        }
+
+        if (btnChangeStart != null) {
+            btnChangeStart.setVisibility(View.VISIBLE);
         }
 
         // Старт от текущей геопозиции пользователя
@@ -392,8 +502,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 }
                 @Override
                 public void onMapLongTap(com.yandex.mapkit.map.Map map, Point point) {
-                    resetRoute();
-                    Toast.makeText(MainActivity.this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
+                    fullResetRoute();
+                    Toast.makeText(MainActivity.this, "Маршрут полностью очищен", Toast.LENGTH_SHORT).show();
                 }
             };
 
@@ -446,34 +556,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             btnEditCategories.setOnClickListener(v -> showEditCategoriesDialog());
         }
 
-        if (btnAddPlace != null) {
-            btnAddPlace.setOnClickListener(v -> {
-                SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-                Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
-                if (categories.isEmpty()) {
-                    Toast.makeText(this, "Сначала выберите категории в профиле", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                routeMode = true;
-                poiMode = false;
-                updateBuildRouteButton();
-                if (bottomSheetBehavior != null) {
-                    bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
-                }
-
-                if (poiMarkers.isEmpty()) {
-                    Toast.makeText(this, "👆 Тапните на карте — покажем точки интереса вокруг", Toast.LENGTH_LONG).show();
-                } else {
-                    Toast.makeText(this, "Тапните по точкам интереса на карте, чтобы добавить/убрать", Toast.LENGTH_LONG).show();
-                }
-            });
-        }
-
-        if (btnSelectStartPoint != null) {
-            btnSelectStartPoint.setOnClickListener(v -> enableStartPointSelection());
-        }
-
         if (btnChangeStart != null) {
             btnChangeStart.setOnClickListener(v -> {
                 enableStartPointSelection();
@@ -483,65 +565,480 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             });
         }
 
+        if (toggleRouteMode != null) {
+            toggleRouteMode.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+                if (!isChecked) return;
+
+                if (currentRoute != null && checkedId == R.id.btnModeAuto) {
+                    Toast.makeText(this, "Сбросьте маршрут, чтобы построить автоматически", Toast.LENGTH_SHORT).show();
+                    group.check(R.id.btnModeManual);
+                    return;
+                }
+
+                if (checkedId == R.id.btnModeAuto && !selectedPoints.isEmpty() && currentRoute == null) {
+                    new AlertDialog.Builder(this)
+                            .setTitle("Очистить маршрут?")
+                            .setMessage("При переходе в автоматический режим ваши добавленные точки будут удалены. Вы хотите продолжить?")
+                            .setPositiveButton("Да", (dialog, which) -> {
+                                fullResetRoute();
+                                applyBuildModeUI(RouteBuildMode.AUTO);
+                                expandBottomSheet();
+                            })
+                            .setNegativeButton("Нет", (dialog, which) -> {
+                                group.check(R.id.btnModeManual);
+                            })
+                            .show();
+                    return;
+                }
+
+                if (checkedId == R.id.btnModeManual) {
+                    applyBuildModeUI(RouteBuildMode.MANUAL);
+                } else if (checkedId == R.id.btnModeAuto) {
+                    applyBuildModeUI(RouteBuildMode.AUTO);
+                }
+
+                expandBottomSheet();
+            });
+        }
+
+        if (sliderMaxPlaces != null && tvMaxPlacesValue != null) {
+            tvMaxPlacesValue.setText(String.valueOf((int) sliderMaxPlaces.getValue()));
+            sliderMaxPlaces.addOnChangeListener((slider, value, fromUser) ->
+                    tvMaxPlacesValue.setText(String.valueOf((int) value))
+            );
+        }
+
+        if (btnAddPlace != null) {
+            btnAddPlace.setOnClickListener(v -> {
+                SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+                Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
+
+                if (categories.isEmpty()) {
+                    Toast.makeText(this, "Сначала выберите категории в профиле", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                applyBuildModeUI(RouteBuildMode.MANUAL);
+                routeMode = true;
+                poiMode = false;
+
+                if (startPoint == null) {
+                    Toast.makeText(this, "Сначала выберите отправную точку", Toast.LENGTH_SHORT).show();
+                    enableStartPointSelection();
+                    return;
+                }
+
+                if (poiMarkers.isEmpty() || lastPoiCenter == null || distanceInMeters(startPoint, lastPoiCenter) > 100) {
+                    searchNearbyPlaces(
+                            startPoint.getLatitude(),
+                            startPoint.getLongitude(),
+                            categories
+                    );
+                    Toast.makeText(this, "Загружаем места рядом со стартом...", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this,
+                            "Тапните по точкам на карте, чтобы добавить или убрать их",
+                            Toast.LENGTH_LONG).show();
+                }
+
+                updateBuildRouteButton();
+                updateBottomSheetState();
+            });
+        }
+
         if (btnBuildRoute != null) {
             btnBuildRoute.setOnClickListener(v -> {
                 SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
                 Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
+
                 if (categories.isEmpty()) {
                     Toast.makeText(this, "Выберите категории в профиле", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
                 if (currentRoute != null) {
-                    // Если маршрут уже построен → сброс
-                    resetRoute();
-                    Toast.makeText(this, "Маршрут сброшен", Toast.LENGTH_SHORT).show();
-                    updateBottomSheetState();
+                    fullResetRoute();
+                    Toast.makeText(this, "Маршрут полностью сброшен", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
-                if (!routeMode) {
-                    // Включаем режим выбора маршрута
-                    routeMode = true;
-                    updateBottomSheetState();
-
-                    if (userLocation != null) {
-                        // Геопозиция доступна → спрашиваем у пользователя
-                        showRouteStartDialog();
-                    } else {
-                        // GPS недоступен → сразу ждём тап по карте
-                        Toast.makeText(this, "👆 Выберите точку на карте для начала маршрута", Toast.LENGTH_LONG).show();
+                if (currentBuildMode == RouteBuildMode.MANUAL) {
+                    if (startPoint == null) {
+                        enableStartPointSelection();
+                        return;
                     }
 
-                } else {
-                    // routeMode включен → строим маршрут если точки есть
-                    if (selectedPoints.size() >= 2) {
-                        buildOptimalRoute();
-                    } else {
-                        Toast.makeText(this, "Недостаточно точек для маршрута", Toast.LENGTH_SHORT).show();
+                    if (getManualSelectedPlacesCount() < 2) {
+                        Toast.makeText(this, "Добавьте минимум 2 места", Toast.LENGTH_SHORT).show();
+                        return;
                     }
+
+                    collapseBottomSheet();
+                    buildOptimalRoute();
+                    return;
                 }
 
-                updateBuildRouteButton();
-                updateSelectedPlacesList();
-                updateBottomSheetState();
+                if (currentBuildMode == RouteBuildMode.AUTO) {
+                    if (isGeneratingAutoRoute) {
+                        Toast.makeText(this, "Маршрут уже генерируется...", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    if (startPoint == null) {
+                        enableStartPointSelection();
+                        return;
+                    }
+
+                    int radius = getAutoRadius();
+                    int maxPlaces = getAutoMaxPlaces();
+                    boolean includeFood = switchSnack != null && switchSnack.isChecked();
+                    collapseBottomSheet();
+                    generateAutomaticRoute(startPoint, radius, maxPlaces, includeFood);
+                }
             });
         }
     }
+    private int getAutoRadius() {
+        if (etAutoRadius == null) return DEFAULT_RADIUS_METERS;
+        return parsePositiveInt(etAutoRadius.getText().toString(), DEFAULT_RADIUS_METERS);
+    }
 
-    private void showRouteStartDialog() {
+    private int getAutoMaxPlaces() {
+        if (sliderMaxPlaces == null) return DEFAULT_MAX_PLACES;
+        return Math.round(sliderMaxPlaces.getValue());
+    }
+
+    private int getManualSelectedPlacesCount() {
+        int count = 0;
+
+        for (Point p : selectedPoints) {
+            if (startPoint == null || distanceInMeters(startPoint, p) >= 5.0) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private void showRouteModeDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Как построить маршрут?")
+                .setItems(
+                        new CharSequence[]{"Автоматически", "Выбрать точки вручную"},
+                        (dialog, which) -> {
+                            if (which == 0) {
+                                startAutomaticRouteFlow();
+                            } else {
+                                startManualRouteFlow();
+                            }
+                        }
+                )
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void startManualRouteFlow() {
+        currentBuildMode = RouteBuildMode.MANUAL;
+        routeMode = true;
+        poiMode = false;
+        awaitingAutoStartPoint = false;
+        isGeneratingAutoRoute = false;
+
+        updateBuildRouteButton();
+        updateBottomSheetState();
+        updateSelectedPlacesList();
+
+        if (userLocation != null) {
+            showManualRouteStartDialog();
+        } else {
+            Toast.makeText(this, "👆 Выберите точку на карте для начала маршрута", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showManualRouteStartDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Начало маршрута")
                 .setMessage("Строить маршрут от вашей текущей геопозиции или выбрать точку на карте?")
                 .setPositiveButton("От моей позиции", (dialog, which) -> {
-                    buildRouteAroundUser(); // метод у тебя уже есть
+                    buildRouteAroundUser();
+                    expandBottomSheet();
                     dialog.dismiss();
                 })
                 .setNegativeButton("Выбрать точку на карте", (dialog, which) -> {
-                    Toast.makeText(this, "👆 Тапните на карте для выбора точки начала маршрута", Toast.LENGTH_LONG).show();
+                    manualStartPointMode = true;
+                    Toast.makeText(this, "👆 Тапните на карте для выбора стартовой точки", Toast.LENGTH_LONG).show();
                     dialog.dismiss();
                 })
                 .show();
+    }
+
+    private void startAutomaticRouteFlow() {
+        currentBuildMode = RouteBuildMode.AUTO;
+        routeMode = false;
+        poiMode = false;
+        awaitingAutoStartPoint = false;
+        isGeneratingAutoRoute = false;
+
+        clearNearbyPlaces();
+        selectedMarkers.clear();
+        selectedPoints.clear();
+
+        updateBuildRouteButton();
+        updateBottomSheetState();
+        updateSelectedPlacesList();
+
+        if (userLocation != null) {
+            showAutomaticRouteStartDialog();
+        } else {
+            awaitingAutoStartPoint = true;
+            updateBuildRouteButton();
+            Toast.makeText(this, "👆 Тапните на карте для выбора стартовой точки", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showAutomaticRouteStartDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Начало маршрута")
+                .setMessage("Построить маршрут от вашей текущей геопозиции или выбрать старт на карте?")
+                .setPositiveButton("От моей позиции", (dialog, which) -> {
+                    if (userLocation == null) {
+                        Toast.makeText(this, "Геопозиция недоступна", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    startPoint = userLocation;
+                    lastPoiCenter = userLocation;
+                    awaitingAutoStartPoint = false;
+
+                    updateStartHeader();
+                    updateBuildRouteButton();
+                    expandBottomSheet();
+
+                    Toast.makeText(this,
+                            "Стартовая точка выбрана: текущее местоположение",
+                            Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Выбрать точку на карте", (dialog, which) -> {
+                    awaitingAutoStartPoint = true;
+                    manualStartPointMode = false;
+                    routeMode = false;
+
+                    updateBuildRouteButton();
+                    updateBottomSheetState();
+
+                    Toast.makeText(this,
+                            "Тапните по карте для выбора стартовой точки",
+                            Toast.LENGTH_LONG).show();
+                })
+                .show();
+    }
+
+    private void showAutoRouteParamsDialog(Point start) {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        layout.setPadding(pad, pad, pad, pad);
+
+        EditText etRadius = new EditText(this);
+        etRadius.setHint("Радиус, м");
+        etRadius.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        etRadius.setText(String.valueOf(DEFAULT_RADIUS_METERS));
+        layout.addView(etRadius);
+
+        EditText etMaxPlaces = new EditText(this);
+        etMaxPlaces.setHint("Максимум точек");
+        etMaxPlaces.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        etMaxPlaces.setText(String.valueOf(DEFAULT_MAX_PLACES));
+        layout.addView(etMaxPlaces);
+
+        CheckBox cbFood = new CheckBox(this);
+        cbFood.setText("Добавить кафе");
+        cbFood.setChecked(switchSnack != null && switchSnack.isChecked());
+        layout.addView(cbFood);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Параметры маршрута")
+                .setView(layout)
+                .setPositiveButton("Построить", (dialog, which) -> {
+                    int radius = parsePositiveInt(etRadius.getText().toString(), DEFAULT_RADIUS_METERS);
+                    int maxPlaces = parsePositiveInt(etMaxPlaces.getText().toString(), DEFAULT_MAX_PLACES);
+                    boolean includeFood = cbFood.isChecked();
+
+                    generateAutomaticRoute(start, radius, maxPlaces, includeFood);
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private int parsePositiveInt(String raw, int fallback) {
+        try {
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : fallback;
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
+    private Set<String> mapUserCategoriesToBackend(Set<String> userCategories) {
+        Set<String> mapped = new HashSet<>();
+
+        for (String category : userCategories) {
+            switch (category) {
+                case "Природа и свежий воздух":
+                    mapped.add("leisure.park");
+                    break;
+                case "Активные приключения":
+                    mapped.add("sport.sports_centre");
+                    break;
+                case "Курорты и здоровый отдых":
+                    mapped.add("leisure.spa");
+                    break;
+                case "Досуг и развлечения":
+                    mapped.add("tourism.attraction");
+                    break;
+                case "История, культура":
+                    mapped.add("tourism.sights");
+                    break;
+                case "Места для шопинга":
+                    mapped.add("commercial.shopping_mall");
+                    break;
+                case "Необычные и скрытые уголки города":
+                    mapped.add("tourism.sights");
+                    break;
+            }
+        }
+
+        if (mapped.isEmpty()) {
+            mapped.add("tourism.attraction");
+            mapped.add("leisure.park");
+        }
+
+        return mapped;
+    }
+
+    private void collapseBottomSheet() {
+        if (bottomSheetBehavior != null) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        }
+    }
+
+    private void expandBottomSheet() {
+        if (bottomSheetBehavior != null) {
+            bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        }
+    }
+    private void generateAutomaticRoute(Point start, int radius, int maxPlaces, boolean includeFood) {
+        SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+        Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
+        Set<String> backendCategories = mapUserCategoriesToBackend(userCategories);
+
+        isGeneratingAutoRoute = true;
+        awaitingAutoStartPoint = false;
+        updateBuildRouteButton();
+
+        Toast.makeText(this, "Генерируем маршрут...", Toast.LENGTH_SHORT).show();
+
+        RouteApi.generateRoute(
+                this,
+                start.getLatitude(),
+                start.getLongitude(),
+                backendCategories,
+                radius,
+                maxPlaces,
+                includeFood,
+                new RouteApi.GenerateRouteCallback() {
+                    @Override
+                    public void onSuccess(RouteApi.GeneratedRouteResult result) {
+                        runOnUiThread(() -> {
+                            isGeneratingAutoRoute = false;
+                            displayGeneratedRoute(result);
+                            updateBuildRouteButton();
+                            updateBottomSheetState();
+                        });
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        runOnUiThread(() -> {
+                            isGeneratingAutoRoute = false;
+                            awaitingAutoStartPoint = false;
+
+                            // ОСТАЁМСЯ в AUTO, чтобы кнопка и экран не переключались в ручную логику
+                            currentBuildMode = RouteBuildMode.AUTO;
+
+                            updateBuildRouteButton();
+                            expandBottomSheet();
+
+                            Toast.makeText(
+                                    MainActivity.this,
+                                    "Ошибка генерации маршрута: " + message,
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        });
+                    }
+                }
+        );
+    }
+
+    private void displayGeneratedPlaces(List<PlacesApi.Place> places) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+        clearNearbyPlaces();
+
+        for (PlacesApi.Place place : places) {
+            Point location = new Point(place.lat, place.lon);
+
+            PlacemarkMapObject marker = mapObjects.addPlacemark(location);
+            marker.setIcon(ImageProvider.fromResource(this, android.R.drawable.btn_star_big_on));
+
+            GeoapifyClient.Place p = new GeoapifyClient.Place(place.name, location);
+
+            marker.setUserData(p);
+
+            poiMarkers.add(marker);
+            selectedMarkers.add(marker);
+            selectedPoints.add(location);
+        }
+    }
+
+    private void displayGeneratedRoute(RouteApi.GeneratedRouteResult result) {
+        selectedMarkers.clear();
+        selectedPoints.clear();
+
+        if (result.places != null) {
+            displayGeneratedPlaces(result.places);
+        }
+
+        if (result.routePoints != null && !result.routePoints.isEmpty()) {
+            displayRoute(result.routePoints, result.distance);
+        }
+
+        currentBuildMode = RouteBuildMode.MANUAL;
+        toggleRouteMode.check(R.id.btnModeManual);
+
+        updateSelectedPlacesList();
+
+        collapseBottomSheet();
+
+        String message = "Маршрут построен";
+        if (result.distance > 0 && result.duration > 0) {
+            message += String.format(" • %.1f км • %.0f мин",
+                    result.distance / 1000.0,
+                    result.duration / 60.0);
+        }
+
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void clearCurrentRouteOnly() {
+        if (mapView != null && mapView.getMapWindow() != null && routeLine != null) {
+            mapView.getMapWindow().getMap().getMapObjects().remove(routeLine);
+            routeLine = null;
+        }
+
+        currentRoute = null;
+        updateBuildRouteButton();
     }
 
     private void showEditCategoriesDialog() {
@@ -673,21 +1170,41 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             return;
         }
 
-        if (!routeMode) {
+        if (currentBuildMode == RouteBuildMode.AUTO) {
+            if (isGeneratingAutoRoute) {
+                btnBuildRoute.setText("Генерируем...");
+                btnBuildRoute.setEnabled(false);
+                return;
+            }
+
+            if (awaitingAutoStartPoint || startPoint == null) {
+                btnBuildRoute.setText("Выберите стартовую точку");
+                btnBuildRoute.setEnabled(true);
+                return;
+            }
+
             btnBuildRoute.setText("Построить маршрут");
             btnBuildRoute.setEnabled(true);
+            return;
+        }
+
+        // MANUAL
+        if (startPoint == null) {
+            btnBuildRoute.setText("Выберите стартовую точку");
+            btnBuildRoute.setEnabled(true);
+            return;
+        }
+
+        int count = getManualSelectedPlacesCount();
+
+        if (count < 2) {
+            btnBuildRoute.setText("Добавьте минимум 2 места");
+            btnBuildRoute.setEnabled(false);
         } else {
-            if (poiMarkers.isEmpty() && customMarkers.isEmpty()) {
-                btnBuildRoute.setText("Ждём тап...");
-                btnBuildRoute.setEnabled(false);
-            } else {
-                btnBuildRoute.setText("Построить маршрут (" + selectedPoints.size() + ")");
-                btnBuildRoute.setEnabled(selectedPoints.size() >= 2);
-            }
+            btnBuildRoute.setText("Построить маршрут (" + count + ")");
+            btnBuildRoute.setEnabled(true);
         }
     }
-
-
 
     /**
      * Ищет POI вокруг указанной точки по категориям пользователя.
@@ -747,21 +1264,45 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (mapView == null || mapView.getMapWindow() == null) return;
 
         MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-        clearNearbyPlaces();
 
+        // 1. Сохраняем уже выбранные маркеры (из автогенерации или добавленные вручную)
+        List<PlacemarkMapObject> markersToKeep = new ArrayList<>(selectedMarkers);
+
+        // 2. Очищаем старые невыбранные POI
+        for (PlacemarkMapObject marker : poiMarkers) {
+            if (!selectedMarkers.contains(marker)) {
+                mapObjects.remove(marker);
+            }
+        }
+        poiMarkers.clear();
+
+        // 3. Возвращаем сохраненные обратно в список
+        poiMarkers.addAll(markersToKeep);
+
+        // 4. Добавляем новые
         for (GeoapifyClient.Place place : places) {
             if (place.location == null) continue;
 
-            PlacemarkMapObject marker = mapObjects.addPlacemark(place.location);
-            marker.setUserData(place);
-            poiMarkers.add(marker);
+            // Проверяем, нет ли уже такого места среди выбранных (чтобы не создавать дубликат)
+            boolean alreadyExists = false;
+            for (Point existingPoint : selectedPoints) {
+                if (distanceInMeters(existingPoint, place.location) < 5.0) {
+                    alreadyExists = true;
+                    break;
+                }
+            }
 
-            // 🔹 Здесь используем иконку pinm
-            marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            if (!alreadyExists) {
+                PlacemarkMapObject marker = mapObjects.addPlacemark(place.location);
+                marker.setUserData(place);
+                poiMarkers.add(marker);
+
+                // 🔹 Здесь используем иконку pinm
+                marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            }
         }
 
-        Toast.makeText(this, "⭐ " + places.size() + " POI. Тапните для маршрута", Toast.LENGTH_LONG).show();
-        if (!places.isEmpty()) adjustCameraToPlaces(places);
+        Toast.makeText(this, "⭐ Найдено новых POI рядом. Тапните для добавления", Toast.LENGTH_LONG).show();
 
         poiMode = true;
         updateBuildRouteButton();
@@ -816,6 +1357,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                                     PlacemarkMapObject marker = mapView.getMapWindow()
                                             .getMap().getMapObjects().addPlacemark(place.location);
                                     marker.setIcon(ImageProvider.fromResource(MainActivity.this, R.drawable.pinm));
+                                    marker.setUserData(place);
                                     poiMarkers.add(marker);
                                 }
                             }
@@ -910,59 +1452,67 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Обработка нажатия на карту
      */
     private void handleMapTap(com.yandex.mapkit.map.Map map, Point point) {
-        if (!routeMode) return;
-
-        // если пользователь меняет стартовую точку
-        if (manualStartPointMode) {
-
-            startPoint = point;
-            manualStartPoint = point;
-
-            showStartPoint(point);   // ⭐ обновляем звезду
-            updateStartHeader();
-
-            manualStartPointMode = false;
-
-            // при смене старта подгружаем дополнительные POI вокруг новой точки
-            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
-            Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
-            if (categories == null) categories = new HashSet<>();
-            searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
-
-            Toast.makeText(this, "Стартовая точка изменена", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // первый тап — выбираем стартовую точку и ищем POI
-        if (poiMarkers.isEmpty() && customMarkers.isEmpty()) {
-
+        if (awaitingAutoStartPoint) {
+            awaitingAutoStartPoint = false;
             startPoint = point;
             lastPoiCenter = point;
 
-            showStartPoint(point);   // ⭐ показать стартовую точку
+            updateStartHeader();
+            updateBuildRouteButton();
+            collapseBottomSheet();
+
+            Toast.makeText(this, "Стартовая точка выбрана", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (manualStartPointMode) {
+            manualStartPoint = point;
+            startPoint = point;
+            lastPoiCenter = point;
+            manualStartPointMode = false;
+            routeMode = true;
+
+            Toast.makeText(this, "Стартовая точка выбрана", Toast.LENGTH_SHORT).show();
+
+            SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
+            Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
+            searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
+
+            updateStartHeader();
+            updateBuildRouteButton();
+            collapseBottomSheet();
+            return;
+        }
+
+        if (currentBuildMode == RouteBuildMode.AUTO) {
+            return;
+        }
+
+        if (!routeMode) return;
+
+        if (poiMarkers.isEmpty()) {
+            startPoint = point;
+            lastPoiCenter = point;
 
             Toast.makeText(this, "🔍 Ищем POI вокруг точки...", Toast.LENGTH_SHORT).show();
 
             SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
             Set<String> categories = prefs.getStringSet("categories", new HashSet<>());
-
             searchNearbyPlaces(point.getLatitude(), point.getLongitude(), categories);
 
             updateStartHeader();
+            updateBuildRouteButton();
+            updateBottomSheetState();
             return;
         }
 
-        // ищем тап по существующему маркеру
-        List<PlacemarkMapObject> allMarkers = new ArrayList<>(poiMarkers);
-        allMarkers.addAll(customMarkers);
-
         PlacemarkMapObject tappedMarker = null;
 
-        for (PlacemarkMapObject marker : allMarkers) {
-            Point markerLocation = marker.getGeometry();
-            if (markerLocation != null) {
-                double distance = distanceBetween(point, markerLocation);
-                if (distance < 0.0005) { // ~50 м
+        for (PlacemarkMapObject marker : poiMarkers) {
+            GeoapifyClient.Place markerPlace = (GeoapifyClient.Place) marker.getUserData();
+            if (markerPlace != null && markerPlace.location != null) {
+                double distance = distanceBetween(point, markerPlace.location);
+                if (distance < 0.0005) {
                     tappedMarker = marker;
                     break;
                 }
@@ -1165,6 +1715,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Отображение маршрута на карте
      */
     private void displayRoute(List<Point> routeCoordinates) {
+        displayRoute(routeCoordinates, 0.0);
+    }
+
+    private void displayRoute(List<Point> routeCoordinates, double distance) {
         if (mapView == null || mapView.getMapWindow() == null) return;
 
         MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
@@ -1178,11 +1732,14 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         adjustCameraToRoute(routeCoordinates);
 
-        // Создаем объект маршрута
-        currentRoute = new Route(routeCoordinates, "Маршрут " + System.currentTimeMillis());
+        currentRoute = new Route(
+                routeCoordinates,
+                "Маршрут " + System.currentTimeMillis(),
+                distance
+        );
 
+        collapseBottomSheet();
         Toast.makeText(MainActivity.this, "Маршрут построен!", Toast.LENGTH_SHORT).show();
-        updateBottomSheetState();
     }
 
     /**
@@ -1191,31 +1748,90 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void resetRoute() {
         if (mapView != null && mapView.getMapWindow() != null) {
             MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-            for (PlacemarkMapObject marker : poiMarkers) mapObjects.remove(marker);
-            for (PlacemarkMapObject marker : customMarkers) mapObjects.remove(marker);
+            
+            // Удаляем только те маркеры, которые не находятся в списке выбранных
+            List<PlacemarkMapObject> markersToRemove = new ArrayList<>();
+            for (PlacemarkMapObject marker : poiMarkers) {
+                if (!selectedMarkers.contains(marker)) {
+                    markersToRemove.add(marker);
+                }
+            }
+            
+            for (PlacemarkMapObject marker : markersToRemove) {
+                mapObjects.remove(marker);
+                poiMarkers.remove(marker);
+            }
+
             if (routeLine != null) {
                 mapObjects.remove(routeLine);
                 routeLine = null;
             }
         }
 
-        startPoint = null;
-        selectedMarkers.clear();
-        selectedPoints.clear();
-        poiMarkers.clear();
-        customMarkers.clear();
+        // Мы больше не очищаем selectedMarkers, selectedPoints и стартовую точку
+        // startPoint = null;
+        // manualStartPoint = null;
+        // manualStartPointMode = false;
+        // selectedMarkers.clear();
+        // selectedPoints.clear();
+        
         poiMode = false;
         routeMode = false;
+        awaitingAutoStartPoint = false;
+        isGeneratingAutoRoute = false;
+        currentBuildMode = RouteBuildMode.NONE;
+
         currentRoute = null;
         currentPointIndex = 0;
 
         updateBuildRouteButton();
-        updateEditCategoriesButton(); // ← добавлено
+        updateEditCategoriesButton();
         updateSelectedPlacesList();
         updateBottomSheetState();
         updateStartHeader();
     }
 
+    /**
+     * Полный сброс (вызывается при переключении из ручного в авто режим и тд)
+     */
+    private void fullResetRoute() {
+        if (mapView != null && mapView.getMapWindow() != null) {
+            MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+            for (PlacemarkMapObject marker : poiMarkers) mapObjects.remove(marker);
+            if (routeLine != null) {
+                mapObjects.remove(routeLine);
+                routeLine = null;
+            }
+            
+            if (startMarker != null) {
+                mapObjects.remove(startMarker);
+                startMarker = null;
+            }
+        }
+
+        startPoint = null;
+        manualStartPoint = null;
+        manualStartPointMode = false;
+
+        selectedMarkers.clear();
+        selectedPoints.clear();
+        poiMarkers.clear();
+
+        poiMode = false;
+        routeMode = false;
+        awaitingAutoStartPoint = false;
+        isGeneratingAutoRoute = false;
+        currentBuildMode = RouteBuildMode.NONE;
+
+        currentRoute = null;
+        currentPointIndex = 0;
+
+        updateBuildRouteButton();
+        updateEditCategoriesButton();
+        updateSelectedPlacesList();
+        updateBottomSheetState();
+        updateStartHeader();
+    }
 
     /**
      * Приближение карты
@@ -1429,8 +2045,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             public void onObjectUpdated(UserLocationView view, ObjectEvent event) {}
         });
     }
-
-
 
     private void fallbackToMoscow() {
         // Камера на Москву
