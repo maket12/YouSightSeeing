@@ -7,7 +7,7 @@ type ORSRequest struct {
 	Geometry     bool        `json:"geometry"`
 }
 
-type Route struct {
+type ORSRoute struct {
 	Geometry [][]float64
 	Distance float64
 	Duration float64
