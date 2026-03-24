@@ -47,127 +47,35 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Заголовок категорий -->
-        <TextView
-            android:id="@+id/tvCategoriesTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ваши Категории"
-            android:textColor="@color/text_primary"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp" />
-
-        <!-- Карточка списка категорий -->
-        <LinearLayout
-            android:id="@+id/categoriesContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_categories_card"
-            android:orientation="vertical"
-            android:padding="16dp"
-            android:layout_marginBottom="24dp">
-
-            <LinearLayout
-                android:id="@+id/categoriesList"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <CheckBox
-                    android:id="@+id/cbCatActive"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Активные приключения"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-
-                <CheckBox
-                    android:id="@+id/cbCatShopping"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Места для шопинга"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-
-                <CheckBox
-                    android:id="@+id/cbCatHistory"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="История, культура"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-
-                <CheckBox
-                    android:id="@+id/cbCatFun"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Досуг и развлечения"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-
-                <CheckBox
-                    android:id="@+id/cbCatNature"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Природа и свежий воздух"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-
-                <CheckBox
-                    android:id="@+id/cbCatResorts"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Курорты и здоровый отдых"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-
-                <CheckBox
-                    android:id="@+id/cbCatHidden"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Необычные и скрытые уголки города"
-                    android:textColor="@color/text_on_teal"
-                    android:textSize="14sp"
-                    android:buttonTint="@color/white"
-                    android:paddingVertical="4dp" />
-            </LinearLayout>
-        </LinearLayout>
-
         <!-- Заголовок маршрутов -->
         <TextView
             android:id="@+id/tvRoutesTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Ваши Маршруты"
+            android:text="Ваши маршруты"
             android:textColor="@color/text_primary"
             android:textSize="18sp"
             android:textStyle="bold"
             android:layout_marginBottom="16dp" />
 
-        <!-- Заглушка для списка маршрутов -->
-        <TextView
-            android:id="@+id/tvRoutesEmpty"
+        <!-- Карточка маршрутов -->
+        <LinearLayout
+            android:id="@+id/routesContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="У вас пока нет сохранённых маршрутов."
-            android:textColor="@color/text_primary"
-            android:textSize="14sp"
-            android:padding="12dp"
+            android:orientation="vertical"
             android:background="@drawable/bg_profile_card"
-            android:layout_marginBottom="24dp" />
+            android:padding="16dp"
+            android:layout_marginBottom="24dp">
+
+            <TextView
+                android:id="@+id/tvRoutesEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="У вас пока нет сохранённых маршрутов."
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <!-- Управляющие кнопки -->
         <Button
@@ -184,5 +92,6 @@
             android:text="Вернуться в главное меню"
             android:layout_marginTop="8dp"
             android:layout_marginBottom="16dp" />
+
     </LinearLayout>
 </ScrollView>
