@@ -571,19 +571,55 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
                 boolean hasManualData = currentRoute != null || !selectedPoints.isEmpty() || startPoint != null;
 
-                if (checkedId == R.id.btnModeAuto && hasManualData) {
-                    new AlertDialog.Builder(this)
-                            .setTitle("Очистить маршрут?")
-                            .setMessage("При переходе в автоматический режим текущий маршрут и выбранные точки будут удалены. Вы хотите продолжить?")
-                            .setPositiveButton("Да", (dialog, which) -> {
-                                fullResetRoute();
-                                applyBuildModeUI(RouteBuildMode.AUTO);
-                                expandBottomSheet();
-                            })
-                            .setNegativeButton("Нет", (dialog, which) -> {
-                                group.check(R.id.btnModeManual);
-                            })
-                            .show();
+                if (checkedId == R.id.btnModeAuto) {
+
+                    // 🔥 ЕСЛИ ЕСТЬ ГОТОВЫЙ МАРШРУТ
+                    if (currentRoute != null) {
+                        new AlertDialog.Builder(this)
+                                .setTitle("Сбросить маршрут?")
+                                .setMessage("Сначала нужно сбросить текущий маршрут, чтобы перейти в автоматический режим.")
+                                .setPositiveButton("Сбросить", (dialog, which) -> {
+                                    fullResetRoute();
+
+                                    startPoint = null;
+                                    awaitingAutoStartPoint = true;
+
+                                    applyBuildModeUI(RouteBuildMode.AUTO);
+                                    expandBottomSheet();
+
+                                    Toast.makeText(this, "Маршрут сброшен. Выберите новую стартовую точку", Toast.LENGTH_SHORT).show();
+                                })
+                                .setNegativeButton("Отмена", (dialog, which) -> {
+                                    group.check(R.id.btnModeManual);
+                                })
+                                .show();
+                        return;
+                    }
+
+                    // 🔹 ЕСЛИ ЕСТЬ ПРОСТО ТОЧКИ
+                    if (!selectedPoints.isEmpty() || startPoint != null) {
+                        new AlertDialog.Builder(this)
+                                .setTitle("Очистить точки?")
+                                .setMessage("Выбранные точки будут удалены при переходе в авто режим.")
+                                .setPositiveButton("Да", (dialog, which) -> {
+                                    fullResetRoute();
+
+                                    startPoint = null;
+                                    awaitingAutoStartPoint = true;
+
+                                    applyBuildModeUI(RouteBuildMode.AUTO);
+                                    expandBottomSheet();
+                                })
+                                .setNegativeButton("Нет", (dialog, which) -> {
+                                    group.check(R.id.btnModeManual);
+                                })
+                                .show();
+                        return;
+                    }
+
+                    // 🔹 если вообще ничего нет — просто переключаем
+                    applyBuildModeUI(RouteBuildMode.AUTO);
+                    expandBottomSheet();
                     return;
                 }
 
@@ -926,6 +962,11 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         }
     }
     private void generateAutomaticRoute(Point start, int radius, int maxPlaces, boolean includeFood) {
+        if (start == null) {
+            Toast.makeText(this, "Сначала выберите стартовую точку", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
         Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
         Set<String> backendCategories = mapUserCategoriesToBackend(userCategories);
@@ -1493,6 +1534,11 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             updateStartHeader();
             updateBuildRouteButton();
             collapseBottomSheet();
+
+            if (currentRoute != null) {
+                clearCurrentRouteOnly();
+                buildOptimalRoute();
+            }
             return;
         }
 
@@ -1850,7 +1896,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         routeMode = false;
         awaitingAutoStartPoint = false;
         isGeneratingAutoRoute = false;
-        currentBuildMode = RouteBuildMode.NONE;
+        currentBuildMode = RouteBuildMode.AUTO;
 
         currentRoute = null;
         currentPointIndex = 0;
