@@ -1392,7 +1392,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     public void onSuccess(List<GeoapifyClient.Place> places) {
                         runOnUiThread(() -> {
                             clearNearbyPlaces();
-                            selectedPoints.clear();
 
                             // ✅ Стартовая точка = геопозиция, но в план не добавляем
                             startPoint = userLocation;
@@ -1412,6 +1411,11 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
                             updateBuildRouteButton();
                             updateStartHeader();
+
+                            if (currentRoute != null) {
+                                clearCurrentRouteOnly();
+                                buildOptimalRoute();
+                            }
                             Toast.makeText(MainActivity.this,
                                     "Точки вокруг геопозиции загружены. Стартовая точка добавлена.",
                                     Toast.LENGTH_LONG).show();
@@ -1431,7 +1435,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (place == null || place.location == null) return;
 
         if (selectedMarkers.contains(marker)) {
-            // ❌ УБРАТЬ из маршрута
             selectedMarkers.remove(marker);
             selectedPoints.remove(place.location);
 
@@ -1668,7 +1671,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Построение оптимального маршрута
      */
     private void buildOptimalRoute() {
-        if (selectedPoints.size() < 2) {
+        int count = selectedPoints.size();
+        if (startPoint != null) count++;
+
+        if (count < 2) {
             Toast.makeText(this, "Недостаточно точек для построения маршрута", Toast.LENGTH_SHORT).show();
             return;
         }
