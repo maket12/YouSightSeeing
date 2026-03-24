@@ -12,7 +12,7 @@ ext {
     mapkitApiKey = getMapkitApiKey()
 }
 
-private String getMapkitApiKey() {
+def getMapkitApiKey() {
     def properties = new Properties()
     def localPropertiesFile = file("local.properties")
     if (localPropertiesFile.exists()) {
