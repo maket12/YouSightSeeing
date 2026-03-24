@@ -71,6 +71,7 @@ public final class PlacesApi {
                                       Set<String> categories, int limit, PlacesCallback cb,
                                       boolean alreadyRetried) {
         String access = AuthActivity.getAccessToken();
+        Log.d("AUTH_TEST", "Access token = " + access);
         if (access == null) {
             cb.onError("Требуется авторизация");
             return;

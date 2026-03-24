@@ -34,12 +34,11 @@ public class ProfileActivity extends AppCompatActivity {
 
         loadProfile();
 
-        // Выйти из аккаунта
+        // Выйти
         btnLogout.setOnClickListener(v -> {
             AuthApi.logout(ProfileActivity.this, new AuthApi.LogoutCallback() {
                 @Override
                 public void onSuccess() {
-                    // локальные токены уже очищены внутри logout()
                     Intent intent = new Intent(ProfileActivity.this, AuthActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                     startActivity(intent);
@@ -47,19 +46,13 @@ public class ProfileActivity extends AppCompatActivity {
 
                 @Override
                 public void onError(String message) {
-                   Toast.makeText(ProfileActivity.this, message, Toast.LENGTH_LONG).show();
+                    Toast.makeText(ProfileActivity.this, message, Toast.LENGTH_LONG).show();
                 }
             });
         });
 
-
-        // Вернуться в главное меню
-        btnGoHome.setOnClickListener(v -> {
-            Intent intent = new Intent(ProfileActivity.this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            finish();
-        });
+        // Назад
+        btnGoHome.setOnClickListener(v -> finish());
     }
 
     private void loadProfile() {

@@ -2,39 +2,39 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F5F5F5">
+    android:background="@color/teal_extra_light">
 
     <LinearLayout
-        android:orientation="vertical"
-        android:padding="16dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <!-- Карточка профиля -->
+        <!-- Шапка профиля -->
         <LinearLayout
             android:id="@+id/cardProfile"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:padding="16dp"
-            android:background="@drawable/bg_profile_card"
+            android:background="@drawable/bg_profile_header"
             android:gravity="center_horizontal"
             android:layout_marginBottom="24dp">
 
-            <!-- здесь можешь потом подставить аватар через ImageView+Glide -->
             <ImageView
                 android:id="@+id/ivAvatar"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:src="@android:drawable/sym_def_app_icon"
-                android:layout_marginBottom="8dp" />
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:src="@mipmap/ic_launcher_round"
+                android:layout_marginBottom="12dp" />
 
             <TextView
                 android:id="@+id/tvName"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Имя Фамилия"
-                android:textSize="18sp"
+                android:text="Василий П."
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 android:layout_marginBottom="4dp" />
 
@@ -42,71 +42,48 @@
                 android:id="@+id/tvEmail"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="mail@gmail.com"
+                android:text="fhhafk@gmail.com"
+                android:textColor="@color/text_primary"
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Заголовок категорий -->
-        <TextView
-            android:id="@+id/tvCategoriesTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Ваши Категории"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Карточка списка категорий -->
-        <LinearLayout
-            android:id="@+id/categoriesContainer"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_categories_card"
-            android:orientation="vertical"
-            android:padding="16dp"
-            android:layout_marginBottom="24dp">
-
-            <!-- Пример одной строки категории -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="8dp">
-
-                <TextView
-                    android:id="@+id/tvCat1"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Активные приключения"
-                    android:textSize="14sp" />
-
-                <RadioButton
-                    android:id="@+id/rbCat1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-            </LinearLayout>
-
-            <!-- остальные категории добавь аналогично -->
-        </LinearLayout>
-
+        <!-- Заголовок маршрутов -->
         <TextView
             android:id="@+id/tvRoutesTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Ваши Маршруты"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:text="Ваши маршруты"
+            android:textColor="@color/text_primary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
 
-        <!-- здесь позже можно добавить список маршрутов -->
+        <!-- Карточка маршрутов -->
+        <LinearLayout
+            android:id="@+id/routesContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_profile_card"
+            android:padding="16dp"
+            android:layout_marginBottom="24dp">
 
+            <TextView
+                android:id="@+id/tvRoutesEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="У вас пока нет сохранённых маршрутов."
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Управляющие кнопки -->
         <Button
             android:id="@+id/btnLogout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Выйти из аккаунта"
-            android:layout_marginTop="16dp" />
+            android:layout_marginTop="8dp" />
 
         <Button
             android:id="@+id/btnGoHome"
@@ -115,5 +92,6 @@
             android:text="Вернуться в главное меню"
             android:layout_marginTop="8dp"
             android:layout_marginBottom="16dp" />
+
     </LinearLayout>
 </ScrollView>
