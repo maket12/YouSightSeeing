@@ -56,12 +56,15 @@ public final class UserApi {
 
             @Override public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 String body = response.body() != null ? response.body().string() : "";
+                Log.d("UserApi", "users/me response = " + body);
                 if (!response.isSuccessful()) {
                     cb.onError("Ошибка профиля: " + response.code() + "\n" + body);
                     return;
                 }
                 try {
-                    cb.onSuccess(new JSONObject(body));
+                    JSONObject json = new JSONObject(body);
+                    JSONObject user = json.getJSONObject("user");
+                    cb.onSuccess(user);
                 } catch (JSONException e) {
                     cb.onError("Некорректный ответ сервера");
                 }
