@@ -3,33 +3,41 @@ package usecase
 import (
 	"YouSightSeeing/backend/internal/app/dto"
 	"YouSightSeeing/backend/internal/app/uc_errors"
+	"YouSightSeeing/backend/internal/domain/entity"
+	"YouSightSeeing/backend/internal/domain/port"
 	"context"
 	"math"
 	"sort"
+	"strings"
 )
 
 const (
 	visitDurationPerPlaceSeconds = 30 * 60
 
-	// Для MVP:
+	// Для recommendation:
 	// - точка не должна быть слишком далеко от стартовой позиции
 	// - новые точки стараемся брать рядом с уже собранным кластером маршрута
+	// - почти одинаковые POI не должны попадать в маршрут одновременно
 	maxPointDistanceFromStartM   = 2500.0
 	maxPointDistanceFromClusterM = 1200.0
+	maxNearDuplicateDistanceM    = 120.0
 )
 
 type GenerateRouteUC struct {
-	searchPlacesUC SearchPlacesUseCase
-	calculateUC    CalculateRouteUseCase
+	searchPlacesUC   SearchPlacesUseCase
+	calculateUC      CalculateRouteUseCase
+	matrixCalculator port.RouteMatrixCalculator
 }
 
 func NewGenerateRouteUC(
 	searchPlacesUC SearchPlacesUseCase,
 	calculateUC CalculateRouteUseCase,
+	matrixCalculator port.RouteMatrixCalculator,
 ) *GenerateRouteUC {
 	return &GenerateRouteUC{
-		searchPlacesUC: searchPlacesUC,
-		calculateUC:    calculateUC,
+		searchPlacesUC:   searchPlacesUC,
+		calculateUC:      calculateUC,
+		matrixCalculator: matrixCalculator,
 	}
 }
 
@@ -50,7 +58,11 @@ func (uc *GenerateRouteUC) Execute(
 	if req.MaxPlaces > 10 {
 		req.MaxPlaces = 10
 	}
+	if req.DurationMinutes <= 0 {
+		req.DurationMinutes = 180
+	}
 
+	timeBudgetSeconds := float64(req.DurationMinutes * 60)
 	categories := normalizeCategories(req.Categories, req.IncludeFood)
 
 	searchResp, err := uc.searchPlacesUC.Execute(ctx, dto.SearchPlacesRequest{
@@ -58,18 +70,46 @@ func (uc *GenerateRouteUC) Execute(
 		Lon:        req.StartLon,
 		Radius:     req.Radius,
 		Categories: categories,
-		Limit:      req.MaxPlaces * 3,
+		Limit:      max(req.MaxPlaces*4, 20),
 	})
 	if err != nil {
 		return dto.GenerateRouteResponse{}, err
 	}
 
-	selectedPlaces := selectPlacesForRoute(
+	candidates := buildRecommendationCandidates(
 		searchResp.Places,
 		req.Categories,
 		req.StartLat,
 		req.StartLon,
+		req.Radius,
+		req.IncludeFood,
+	)
+
+	if len(candidates) == 0 {
+		return dto.GenerateRouteResponse{}, uc_errors.ErrSearchPlacesFailed
+	}
+
+	matrixLocations := make([][]float64, 0, len(candidates)+1)
+	matrixLocations = append(matrixLocations, []float64{req.StartLon, req.StartLat})
+
+	for i := range candidates {
+		candidates[i].MatrixIndex = len(matrixLocations)
+		matrixLocations = append(matrixLocations, candidates[i].Place.Coordinates)
+	}
+
+	matrixResp, err := uc.matrixCalculator.CalculateMatrix(ctx, entity.ORSMatrixRequest{
+		Locations: matrixLocations,
+		Metrics:   []string{"duration"},
+	})
+	if err != nil {
+		return dto.GenerateRouteResponse{}, uc_errors.Wrap(uc_errors.ErrRouteMatrixFailed, err)
+	}
+
+	selectedPlaces := greedySelectPlaces(
+		candidates,
+		matrixResp,
 		req.MaxPlaces,
+		timeBudgetSeconds,
 		req.IncludeFood,
 	)
 
@@ -77,42 +117,526 @@ func (uc *GenerateRouteUC) Execute(
 		return dto.GenerateRouteResponse{}, uc_errors.ErrSearchPlacesFailed
 	}
 
-	coordinates := make([][]float64, 0, len(selectedPlaces)+1)
-	coordinates = append(coordinates, []float64{req.StartLon, req.StartLat})
-
-	for _, place := range selectedPlaces {
-		if len(place.Coordinates) < 2 {
-			continue
-		}
-		coordinates = append(coordinates, place.Coordinates)
-	}
-
-	if len(coordinates) < 2 {
-		return dto.GenerateRouteResponse{}, uc_errors.ErrInvalidRoutePoints
-	}
-
-	routeResp, err := uc.calculateUC.Execute(ctx, dto.CalculateRouteRequest{
-		Coordinates:   coordinates,
-		Profile:       "foot-walking",
-		Preference:    "",
-		OptimizeOrder: true,
-	})
+	finalPlaces, routeResp, estimatedDuration, err := uc.buildRouteWithinBudget(
+		ctx,
+		req.StartLat,
+		req.StartLon,
+		selectedPlaces,
+		timeBudgetSeconds,
+	)
 	if err != nil {
 		return dto.GenerateRouteResponse{}, err
 	}
 
-	// MVP-заглушка:
-	// итоговое время = время ходьбы + 30 минут на каждую точку.
-	estimatedDuration := routeResp.Duration + float64(len(selectedPlaces)*visitDurationPerPlaceSeconds)
-
 	return dto.GenerateRouteResponse{
-		Places: selectedPlaces,
+		Places: finalPlaces,
 		Route: dto.RouteResult{
 			Points:   routeResp.Points,
 			Distance: routeResp.Distance,
 			Duration: estimatedDuration,
 		},
 	}, nil
+}
+
+type recommendationCandidate struct {
+	Place        dto.Place
+	BaseScore    float64
+	PrimaryClass string
+	IsFood       bool
+	MatrixIndex  int
+}
+
+func buildRecommendationCandidates(
+	places []dto.Place,
+	requestedCategories []string,
+	startLat float64,
+	startLon float64,
+	radius int,
+	includeFood bool,
+) []recommendationCandidate {
+	uniquePlaces := deduplicatePlaces(places)
+	normalizedRequested := normalizeRequestedRegularCategories(requestedCategories)
+	preferenceWeights := buildPreferenceWeights(normalizedRequested, includeFood)
+
+	result := make([]recommendationCandidate, 0, len(uniquePlaces))
+
+	for _, place := range uniquePlaces {
+		if len(place.Coordinates) < 2 {
+			continue
+		}
+
+		distFromStart := distanceMeters(
+			startLat, startLon,
+			place.Coordinates[1], place.Coordinates[0],
+		)
+
+		if distFromStart > float64(radius) {
+			continue
+		}
+
+		isFood := hasFoodCategory(place.Categories)
+		if isFood && !includeFood {
+			continue
+		}
+
+		primaryClass := detectPrimaryClass(place, normalizedRequested, isFood)
+		if primaryClass == "" && !isFood {
+			continue
+		}
+
+		if isLowQualityPlace(place) {
+			continue
+		}
+
+		baseScore := computeBaseScore(place, preferenceWeights, startLat, startLon, radius, isFood)
+
+		result = append(result, recommendationCandidate{
+			Place:        place,
+			BaseScore:    baseScore,
+			PrimaryClass: primaryClass,
+			IsFood:       isFood,
+		})
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].BaseScore > result[j].BaseScore
+	})
+
+	return result
+}
+
+func buildPreferenceWeights(requestedCategories []string, includeFood bool) map[string]float64 {
+	weights := map[string]float64{
+		"tourism.sights":       0.9,
+		"leisure.park":         0.8,
+		"entertainment.museum": 0.75,
+	}
+
+	for _, category := range requestedCategories {
+		weights[category] = 1.0
+	}
+
+	if includeFood {
+		weights["catering.cafe"] = 0.45
+	}
+
+	return weights
+}
+
+func detectPrimaryClass(place dto.Place, requestedCategories []string, isFood bool) string {
+	if isFood {
+		return "food"
+	}
+
+	for _, req := range requestedCategories {
+		for _, actual := range place.Categories {
+			if actual == req || hasCategoryPrefix(actual, req+".") || hasCategoryPrefix(req, actual+".") {
+				return req
+			}
+		}
+	}
+
+	for _, actual := range place.Categories {
+		if hasCategoryPrefix(actual, "tourism.sights") {
+			return "tourism.sights"
+		}
+		if hasCategoryPrefix(actual, "leisure.park") {
+			return "leisure.park"
+		}
+		if hasCategoryPrefix(actual, "entertainment.museum") {
+			return "entertainment.museum"
+		}
+	}
+
+	return ""
+}
+
+func computeBaseScore(
+	place dto.Place,
+	preferenceWeights map[string]float64,
+	startLat float64,
+	startLon float64,
+	radius int,
+	isFood bool,
+) float64 {
+	preferenceScore := 0.3
+	for category, weight := range preferenceWeights {
+		for _, actual := range place.Categories {
+			if actual == category || hasCategoryPrefix(actual, category+".") {
+				if weight > preferenceScore {
+					preferenceScore = weight
+				}
+			}
+		}
+	}
+
+	dist := distanceMeters(startLat, startLon, place.Coordinates[1], place.Coordinates[0])
+	proximityBonus := 0.0
+	if radius > 0 {
+		proximityBonus = 1.0 - (dist / float64(radius))
+		if proximityBonus < 0 {
+			proximityBonus = 0
+		}
+	}
+
+	foodPenalty := 0.0
+	if isFood {
+		foodPenalty = 0.1
+	}
+
+	return preferenceScore + 0.4*proximityBonus - foodPenalty
+}
+
+func greedySelectPlaces(
+	candidates []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+	maxPlaces int,
+	timeBudgetSeconds float64,
+	includeFood bool,
+) []dto.Place {
+	selected := make([]recommendationCandidate, 0, maxPlaces)
+	used := make(map[string]struct{})
+	categoryCounts := make(map[string]int)
+	foodUsed := false
+	currentSpent := 0.0
+
+	// Если пользователь попросил food-point, стараемся заранее включить одну подходящую
+	if includeFood && maxPlaces > 0 {
+		if foodCandidate, addedTime, ok := chooseRequiredFoodCandidate(candidates, matrix, timeBudgetSeconds); ok {
+			selected = append(selected, foodCandidate)
+			currentSpent += addedTime
+			foodUsed = true
+			categoryCounts[foodCandidate.PrimaryClass]++
+
+			if foodCandidate.Place.PlaceID != "" {
+				used[foodCandidate.Place.PlaceID] = struct{}{}
+			}
+		}
+	}
+
+	for len(selected) < maxPlaces {
+		bestIdx := -1
+		bestGain := 0.0
+		bestAddedTime := 0.0
+
+		for i, candidate := range candidates {
+			if candidate.Place.PlaceID != "" {
+				if _, exists := used[candidate.Place.PlaceID]; exists {
+					continue
+				}
+			}
+
+			if candidate.IsFood {
+				if !includeFood || foodUsed {
+					continue
+				}
+			} else {
+				if categoryCounts[candidate.PrimaryClass] >= 2 {
+					continue
+				}
+
+				// Пока есть доступный новый класс, не берём второй объект уже представленного класса
+				if categoryCounts[candidate.PrimaryClass] >= 1 &&
+					hasUnrepresentedAlternative(
+						candidates,
+						selected,
+						used,
+						categoryCounts,
+						candidate.PrimaryClass,
+						matrix,
+						currentSpent,
+						timeBudgetSeconds,
+					) {
+					continue
+				}
+			}
+
+			if isTooSimilarToSelected(candidate, selected) {
+				continue
+			}
+
+			addedTime := estimateAddedTime(candidate, selected, matrix)
+			if addedTime <= 0 {
+				continue
+			}
+
+			if currentSpent+addedTime > timeBudgetSeconds {
+				continue
+			}
+
+			dynamicScore := candidate.BaseScore
+
+			if categoryCounts[candidate.PrimaryClass] == 0 {
+				dynamicScore += 0.30
+			} else {
+				dynamicScore -= 0.30 * float64(categoryCounts[candidate.PrimaryClass])
+			}
+
+			if len(selected) > 0 && selected[len(selected)-1].PrimaryClass == candidate.PrimaryClass {
+				dynamicScore -= 0.20
+			}
+
+			gain := dynamicScore / addedTime
+			if gain > bestGain {
+				bestGain = gain
+				bestIdx = i
+				bestAddedTime = addedTime
+			}
+		}
+
+		if bestIdx == -1 {
+			break
+		}
+
+		chosen := candidates[bestIdx]
+		selected = append(selected, chosen)
+		currentSpent += bestAddedTime
+
+		if chosen.Place.PlaceID != "" {
+			used[chosen.Place.PlaceID] = struct{}{}
+		}
+		categoryCounts[chosen.PrimaryClass]++
+		if chosen.IsFood {
+			foodUsed = true
+		}
+	}
+
+	result := make([]dto.Place, 0, len(selected))
+	for _, item := range selected {
+		result = append(result, item.Place)
+	}
+
+	return result
+}
+
+func estimateAddedTime(
+	candidate recommendationCandidate,
+	selected []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+) float64 {
+	if matrix == nil || len(matrix.Durations) == 0 {
+		return float64(visitDurationPerPlaceSeconds)
+	}
+
+	bestTravel := safeMatrixDuration(matrix, 0, candidate.MatrixIndex)
+
+	for _, selectedCandidate := range selected {
+		d := safeMatrixDuration(matrix, selectedCandidate.MatrixIndex, candidate.MatrixIndex)
+		if d > 0 && (bestTravel == 0 || d < bestTravel) {
+			bestTravel = d
+		}
+	}
+
+	if bestTravel <= 0 {
+		return 0
+	}
+
+	return bestTravel + float64(visitDurationPerPlaceSeconds)
+}
+
+func safeMatrixDuration(matrix *entity.RouteMatrix, from, to int) float64 {
+	if matrix == nil || from < 0 || to < 0 {
+		return 0
+	}
+	if from >= len(matrix.Durations) {
+		return 0
+	}
+	if to >= len(matrix.Durations[from]) {
+		return 0
+	}
+	return matrix.Durations[from][to]
+}
+
+func chooseRequiredFoodCandidate(
+	candidates []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+	timeBudgetSeconds float64,
+) (recommendationCandidate, float64, bool) {
+	bestIdx := -1
+	bestGain := 0.0
+	bestAddedTime := 0.0
+
+	for i, candidate := range candidates {
+		if !candidate.IsFood {
+			continue
+		}
+
+		addedTime := estimateAddedTime(candidate, nil, matrix)
+		if addedTime <= 0 || addedTime > timeBudgetSeconds {
+			continue
+		}
+
+		dynamicScore := candidate.BaseScore + 0.20
+		gain := dynamicScore / addedTime
+
+		if gain > bestGain {
+			bestGain = gain
+			bestIdx = i
+			bestAddedTime = addedTime
+		}
+	}
+
+	if bestIdx == -1 {
+		return recommendationCandidate{}, 0, false
+	}
+
+	return candidates[bestIdx], bestAddedTime, true
+}
+
+func hasUnrepresentedAlternative(
+	candidates []recommendationCandidate,
+	selected []recommendationCandidate,
+	used map[string]struct{},
+	categoryCounts map[string]int,
+	currentPrimaryClass string,
+	matrix *entity.RouteMatrix,
+	currentSpent float64,
+	timeBudgetSeconds float64,
+) bool {
+	for _, candidate := range candidates {
+		if candidate.IsFood {
+			continue
+		}
+		if candidate.PrimaryClass == "" || candidate.PrimaryClass == currentPrimaryClass {
+			continue
+		}
+		if categoryCounts[candidate.PrimaryClass] > 0 {
+			continue
+		}
+		if candidate.Place.PlaceID != "" {
+			if _, exists := used[candidate.Place.PlaceID]; exists {
+				continue
+			}
+		}
+		if isTooSimilarToSelected(candidate, selected) {
+			continue
+		}
+
+		addedTime := estimateAddedTime(candidate, selected, matrix)
+		if addedTime <= 0 {
+			continue
+		}
+		if currentSpent+addedTime > timeBudgetSeconds {
+			continue
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func isLowQualityPlace(place dto.Place) bool {
+	name := strings.TrimSpace(place.Name)
+	address := strings.TrimSpace(place.Address)
+
+	if name == "" {
+		return true
+	}
+
+	if address != "" && sameNormalizedText(name, address) {
+		return true
+	}
+
+	return false
+}
+
+func sameNormalizedText(a, b string) bool {
+	return strings.EqualFold(strings.TrimSpace(a), strings.TrimSpace(b))
+}
+
+func isTooSimilarToSelected(
+	candidate recommendationCandidate,
+	selected []recommendationCandidate,
+) bool {
+	for _, existing := range selected {
+		if existing.PrimaryClass != candidate.PrimaryClass {
+			continue
+		}
+
+		if arePlacesNear(candidate.Place, existing.Place, maxNearDuplicateDistanceM) {
+			return true
+		}
+
+		if sameAddress(candidate.Place, existing.Place) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func arePlacesNear(a dto.Place, b dto.Place, thresholdMeters float64) bool {
+	if len(a.Coordinates) < 2 || len(b.Coordinates) < 2 {
+		return false
+	}
+
+	dist := distanceMeters(
+		a.Coordinates[1], a.Coordinates[0],
+		b.Coordinates[1], b.Coordinates[0],
+	)
+
+	return dist <= thresholdMeters
+}
+
+func sameAddress(a dto.Place, b dto.Place) bool {
+	if a.Address == "" || b.Address == "" {
+		return false
+	}
+
+	return sameNormalizedText(a.Address, b.Address)
+}
+
+func (uc *GenerateRouteUC) buildRouteWithinBudget(
+	ctx context.Context,
+	startLat float64,
+	startLon float64,
+	selectedPlaces []dto.Place,
+	timeBudgetSeconds float64,
+) ([]dto.Place, dto.CalculateRouteResponse, float64, error) {
+	working := append([]dto.Place(nil), selectedPlaces...)
+
+	for len(working) > 0 {
+		coordinates := make([][]float64, 0, len(working)+1)
+		coordinates = append(coordinates, []float64{startLon, startLat})
+
+		for _, place := range working {
+			if len(place.Coordinates) < 2 {
+				continue
+			}
+			coordinates = append(coordinates, place.Coordinates)
+		}
+
+		if len(coordinates) < 2 {
+			return dto.GenerateRouteResponse{}.Places, dto.CalculateRouteResponse{}, 0, uc_errors.ErrInvalidRoutePoints
+		}
+
+		routeResp, err := uc.calculateUC.Execute(ctx, dto.CalculateRouteRequest{
+			Coordinates:   coordinates,
+			Profile:       "foot-walking",
+			Preference:    "",
+			OptimizeOrder: true,
+		})
+		if err != nil {
+			return nil, dto.CalculateRouteResponse{}, 0, err
+		}
+
+		estimatedDuration := routeResp.Duration + float64(len(working)*visitDurationPerPlaceSeconds)
+		if estimatedDuration <= timeBudgetSeconds {
+			return working, routeResp, estimatedDuration, nil
+		}
+
+		working = working[:len(working)-1]
+	}
+
+	return nil, dto.CalculateRouteResponse{}, 0, uc_errors.ErrSearchPlacesFailed
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func normalizeCategories(categories []string, includeFood bool) []string {
