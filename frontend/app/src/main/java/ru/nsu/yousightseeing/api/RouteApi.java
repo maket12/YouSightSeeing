@@ -191,6 +191,7 @@ public final class RouteApi {
                                      Set<String> categories,
                                      int radius,
                                      int maxPlaces,
+                                     int durationMinutes,
                                      boolean includeFood,
                                      GenerateRouteCallback cb) {
 
@@ -201,6 +202,7 @@ public final class RouteApi {
                 categories,
                 radius,
                 maxPlaces,
+                durationMinutes,
                 includeFood,
                 cb,
                 false
@@ -213,6 +215,7 @@ public final class RouteApi {
                                              Set<String> categories,
                                              int radius,
                                              int maxPlaces,
+                                             int durationMinutes,
                                              boolean includeFood,
                                              GenerateRouteCallback cb,
                                              boolean alreadyRetried) {
@@ -241,6 +244,9 @@ public final class RouteApi {
             }
             if (maxPlaces > 0) {
                 bodyJson.put("max_places", maxPlaces);
+            }
+            if (durationMinutes > 0) {
+                bodyJson.put("duration_minutes", durationMinutes);
             }
 
             bodyJson.put("include_food", includeFood);
@@ -284,6 +290,7 @@ public final class RouteApi {
                                     categories,
                                     radius,
                                     maxPlaces,
+                                    durationMinutes,
                                     includeFood,
                                     cb,
                                     true
