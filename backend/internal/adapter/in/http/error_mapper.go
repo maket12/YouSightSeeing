@@ -22,6 +22,7 @@ func HttpError(err error) (int, string, error) {
 			errors.Is(w.Public, uc_errors.GenerateAccessTokenError),
 			errors.Is(w.Public, uc_errors.GenerateRefreshTokenError),
 			errors.Is(err, uc_errors.ErrRouteCalculationFailed),
+			errors.Is(err, uc_errors.ErrRouteMatrixFailed),
 			errors.Is(w.Public, uc_errors.ErrSearchPlacesFailed):
 			return http.StatusInternalServerError, w.Public.Error(), w.Reason
 		default:
