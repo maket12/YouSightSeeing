@@ -31,6 +31,7 @@ var (
 	GenerateRefreshTokenError = errors.New("failed to generate new refresh token")
 
 	ErrRouteCalculationFailed = errors.New("failed to calculate route")
+	ErrRouteMatrixFailed      = errors.New("failed to calculate route matrix")
 	ErrInvalidRoutePoints     = errors.New("need at least 2 points to calculate a route")
 
 	ErrSearchPlacesFailed  = errors.New("failed to search places")
