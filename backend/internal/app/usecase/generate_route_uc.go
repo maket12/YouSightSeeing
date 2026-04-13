@@ -117,6 +117,14 @@ func (uc *GenerateRouteUC) Execute(
 		return dto.GenerateRouteResponse{}, uc_errors.ErrSearchPlacesFailed
 	}
 
+	selectedPlaces = localImproveSelection(
+		selectedPlaces,
+		candidates,
+		matrixResp,
+		timeBudgetSeconds,
+		req.IncludeFood,
+	)
+
 	finalPlaces, routeResp, estimatedDuration, err := uc.buildRouteWithinBudget(
 		ctx,
 		req.StartLat,
@@ -407,6 +415,220 @@ func greedySelectPlaces(
 	}
 
 	return result
+}
+
+func localImproveSelection(
+	currentPlaces []dto.Place,
+	allCandidates []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+	timeBudgetSeconds float64,
+	includeFood bool,
+) []dto.Place {
+	currentCandidates, ok := mapPlacesToCandidates(currentPlaces, allCandidates)
+	if !ok || len(currentCandidates) == 0 {
+		return currentPlaces
+	}
+
+	bestSelection := cloneCandidates(currentCandidates)
+	bestObjective := selectionObjective(bestSelection, includeFood)
+
+	foodAvailable := false
+	for _, candidate := range allCandidates {
+		if candidate.IsFood {
+			foodAvailable = true
+			break
+		}
+	}
+
+	for selectedIdx := range currentCandidates {
+		currentKeySet := buildCandidateKeySet(currentCandidates)
+		delete(currentKeySet, candidateKey(currentCandidates[selectedIdx]))
+
+		for _, candidate := range allCandidates {
+			key := candidateKey(candidate)
+			if _, exists := currentKeySet[key]; exists {
+				continue
+			}
+
+			tentative := cloneCandidates(currentCandidates)
+			tentative[selectedIdx] = candidate
+
+			if hasSelectionNearDuplicates(tentative) {
+				continue
+			}
+
+			if !selectionSatisfiesConstraints(tentative) {
+				continue
+			}
+
+			approxDuration := approximateSelectionDuration(tentative, matrix)
+			if approxDuration > timeBudgetSeconds {
+				continue
+			}
+
+			objective := selectionObjective(tentative, includeFood)
+			if includeFood && foodAvailable && !selectionHasFood(bestSelection) && selectionHasFood(tentative) {
+				objective += 0.20
+			}
+
+			if objective > bestObjective+0.05 {
+				bestSelection = tentative
+				bestObjective = objective
+			}
+		}
+	}
+
+	return candidatesToPlaces(bestSelection)
+}
+
+func mapPlacesToCandidates(
+	places []dto.Place,
+	candidates []recommendationCandidate,
+) ([]recommendationCandidate, bool) {
+	index := make(map[string]recommendationCandidate, len(candidates))
+	for _, candidate := range candidates {
+		index[candidateKey(candidate)] = candidate
+	}
+
+	result := make([]recommendationCandidate, 0, len(places))
+	for _, place := range places {
+		candidate, exists := index[candidateKeyFromPlace(place)]
+		if !exists {
+			return nil, false
+		}
+		result = append(result, candidate)
+	}
+
+	return result, true
+}
+
+func candidatesToPlaces(candidates []recommendationCandidate) []dto.Place {
+	result := make([]dto.Place, 0, len(candidates))
+	for _, candidate := range candidates {
+		result = append(result, candidate.Place)
+	}
+	return result
+}
+
+func cloneCandidates(src []recommendationCandidate) []recommendationCandidate {
+	dst := make([]recommendationCandidate, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func buildCandidateKeySet(candidates []recommendationCandidate) map[string]struct{} {
+	result := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		result[candidateKey(candidate)] = struct{}{}
+	}
+	return result
+}
+
+func candidateKey(candidate recommendationCandidate) string {
+	return candidateKeyFromPlace(candidate.Place)
+}
+
+func candidateKeyFromPlace(place dto.Place) string {
+	if place.PlaceID != "" {
+		return place.PlaceID
+	}
+	return strings.TrimSpace(place.Name) + "|" + strings.TrimSpace(place.Address)
+}
+
+func selectionSatisfiesConstraints(selection []recommendationCandidate) bool {
+	categoryCounts := make(map[string]int)
+	foodCount := 0
+
+	for _, candidate := range selection {
+		if candidate.IsFood {
+			foodCount++
+			if foodCount > 1 {
+				return false
+			}
+			continue
+		}
+
+		categoryCounts[candidate.PrimaryClass]++
+		if categoryCounts[candidate.PrimaryClass] > 2 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func selectionHasFood(selection []recommendationCandidate) bool {
+	for _, candidate := range selection {
+		if candidate.IsFood {
+			return true
+		}
+	}
+	return false
+}
+
+func hasSelectionNearDuplicates(selection []recommendationCandidate) bool {
+	for i := 0; i < len(selection); i++ {
+		for j := i + 1; j < len(selection); j++ {
+			if selection[i].PrimaryClass != selection[j].PrimaryClass {
+				continue
+			}
+			if isTooSimilarToSelected(selection[i], []recommendationCandidate{selection[j]}) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func approximateSelectionDuration(
+	selection []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+) float64 {
+	total := 0.0
+	built := make([]recommendationCandidate, 0, len(selection))
+
+	for _, candidate := range selection {
+		added := estimateAddedTime(candidate, built, matrix)
+		if added <= 0 {
+			return math.MaxFloat64
+		}
+		total += added
+		built = append(built, candidate)
+	}
+
+	return total
+}
+
+func selectionObjective(
+	selection []recommendationCandidate,
+	includeFood bool,
+) float64 {
+	total := 0.0
+	categoryCounts := make(map[string]int)
+	uniqueClasses := make(map[string]struct{})
+
+	for _, candidate := range selection {
+		total += candidate.BaseScore
+		categoryCounts[candidate.PrimaryClass]++
+		uniqueClasses[candidate.PrimaryClass] = struct{}{}
+	}
+
+	for className, count := range categoryCounts {
+		if className == "food" {
+			continue
+		}
+		if count > 1 {
+			total -= 0.20 * float64(count-1)
+		}
+	}
+
+	total += 0.10 * float64(len(uniqueClasses))
+
+	if includeFood && selectionHasFood(selection) {
+		total += 0.10
+	}
+
+	return total
 }
 
 func estimateAddedTime(
