@@ -74,6 +74,7 @@ func main() {
 		cfg.RefreshDuration,
 	)
 	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
+	routeMatrixCalculator := adapterors.NewRouteMatrixCalculator(cfg.ORSApiKey)
 	placesService := adaptergeo.NewPlacesService(cfg.GeopifyAPIKey)
 
 	// ======================
@@ -95,7 +96,7 @@ func main() {
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 	searchPlacesUC := usecase.NewSearchPlacesUC(placesService)
-	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC)
+	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC, routeMatrixCalculator)
 
 	// ======================
 	// 6. Handlers (REST)

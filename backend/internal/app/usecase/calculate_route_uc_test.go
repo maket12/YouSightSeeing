@@ -61,7 +61,7 @@ func TestCalculateRouteUC(t *testing.T) {
 
 			if tt.CallRepo {
 				repo.On("CalculateRoute", mock.Anything, mock.Anything).
-					Return(&entity.Route{}, tt.RepoErr)
+					Return(&entity.ORSRoute{}, tt.RepoErr)
 			}
 
 			_, err := uc.Execute(context.Background(), tt.Input)

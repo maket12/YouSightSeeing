@@ -84,6 +84,7 @@ public class AuthActivity extends AppCompatActivity {
                                     public void onSuccess(String access, String refresh) {
                                         runOnUiThread(() -> {
                                             saveTokensFromBackend(access, refresh);
+                                            saveGoogleProfile(account);
                                             Toast.makeText(AuthActivity.this, "Успешный вход", Toast.LENGTH_SHORT).show();
                                             navigateToMain();
                                         });
@@ -146,5 +147,29 @@ public class AuthActivity extends AppCompatActivity {
     private void navigateToMain() {
         startActivity(new Intent(this, SplashActivity.class));
         finish();
+    }
+
+    public static String getUserName() {
+        if (appContext == null) return null;
+        return appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("google_name", null);
+    }
+
+    public static String getUserPhoto() {
+        if (appContext == null) return null;
+        return appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("google_photo", null);
+    }
+
+    private void saveGoogleProfile(GoogleSignInAccount account) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs.edit()
+                .putString("email", account.getEmail())
+                .putString("google_name", account.getDisplayName())
+                .putString(
+                        "google_photo",
+                        account.getPhotoUrl() != null ? account.getPhotoUrl().toString() : ""
+                )
+                .apply();
     }
 }

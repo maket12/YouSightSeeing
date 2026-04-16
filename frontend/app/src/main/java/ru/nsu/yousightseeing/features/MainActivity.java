@@ -97,6 +97,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private SwitchMaterial switchSnack;
     private TextView tvStartTitle;
     private TextView tvStartSubtitle;
+    private TextView tvDurationValue;
     private Button btnChangeStart;
 
     // Yandex Search
@@ -212,6 +213,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         tvStartTitle = findViewById(R.id.tvStartTitle);
         tvStartSubtitle = findViewById(R.id.tvStartSubtitle);
+        tvDurationValue = findViewById(R.id.tvDurationValue);
 
         etAutoRadius = findViewById(R.id.etAutoRadius);
         sliderMaxPlaces = findViewById(R.id.sliderMaxPlaces);
@@ -229,6 +231,13 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         if (tvStartSubtitle != null) {
             tvStartSubtitle.setOnClickListener(null);
+        }
+        if (sliderDurationHours != null) {
+            sliderDurationHours.setValue(3f);
+        }
+
+        if (tvDurationValue != null) {
+            tvDurationValue.setText("3 ч");
         }
 
         if (bottomSheet != null) {
@@ -571,55 +580,19 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
                 boolean hasManualData = currentRoute != null || !selectedPoints.isEmpty() || startPoint != null;
 
-                if (checkedId == R.id.btnModeAuto) {
-
-                    // 🔥 ЕСЛИ ЕСТЬ ГОТОВЫЙ МАРШРУТ
-                    if (currentRoute != null) {
-                        new AlertDialog.Builder(this)
-                                .setTitle("Сбросить маршрут?")
-                                .setMessage("Сначала нужно сбросить текущий маршрут, чтобы перейти в автоматический режим.")
-                                .setPositiveButton("Сбросить", (dialog, which) -> {
-                                    fullResetRoute();
-
-                                    startPoint = null;
-                                    awaitingAutoStartPoint = true;
-
-                                    applyBuildModeUI(RouteBuildMode.AUTO);
-                                    expandBottomSheet();
-
-                                    Toast.makeText(this, "Маршрут сброшен. Выберите новую стартовую точку", Toast.LENGTH_SHORT).show();
-                                })
-                                .setNegativeButton("Отмена", (dialog, which) -> {
-                                    group.check(R.id.btnModeManual);
-                                })
-                                .show();
-                        return;
-                    }
-
-                    // 🔹 ЕСЛИ ЕСТЬ ПРОСТО ТОЧКИ
-                    if (!selectedPoints.isEmpty() || startPoint != null) {
-                        new AlertDialog.Builder(this)
-                                .setTitle("Очистить точки?")
-                                .setMessage("Выбранные точки будут удалены при переходе в авто режим.")
-                                .setPositiveButton("Да", (dialog, which) -> {
-                                    fullResetRoute();
-
-                                    startPoint = null;
-                                    awaitingAutoStartPoint = true;
-
-                                    applyBuildModeUI(RouteBuildMode.AUTO);
-                                    expandBottomSheet();
-                                })
-                                .setNegativeButton("Нет", (dialog, which) -> {
-                                    group.check(R.id.btnModeManual);
-                                })
-                                .show();
-                        return;
-                    }
-
-                    // 🔹 если вообще ничего нет — просто переключаем
-                    applyBuildModeUI(RouteBuildMode.AUTO);
-                    expandBottomSheet();
+                if (checkedId == R.id.btnModeAuto && hasManualData) {
+                    new AlertDialog.Builder(this)
+                            .setTitle("Очистить маршрут?")
+                            .setMessage("При переходе в автоматический режим текущий маршрут и выбранные точки будут удалены. Вы хотите продолжить?")
+                            .setPositiveButton("Да", (dialog, which) -> {
+                                fullResetRoute();
+                                applyBuildModeUI(RouteBuildMode.AUTO);
+                                expandBottomSheet();
+                            })
+                            .setNegativeButton("Нет", (dialog, which) -> {
+                                group.check(R.id.btnModeManual);
+                            })
+                            .show();
                     return;
                 }
 
@@ -638,6 +611,15 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             sliderMaxPlaces.addOnChangeListener((slider, value, fromUser) ->
                     tvMaxPlacesValue.setText(String.valueOf((int) value))
             );
+        }
+
+        if (sliderDurationHours != null && tvDurationValue != null) {
+            tvDurationValue.setText(String.format("%d ч", (int) sliderDurationHours.getValue()));
+
+            sliderDurationHours.addOnChangeListener((slider, value, fromUser) -> {
+                int hours = (int) value;
+                tvDurationValue.setText(String.format("%d ч", hours));
+            });
         }
 
         if (btnAddPlace != null) {
@@ -723,9 +705,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
                     int radius = getAutoRadius();
                     int maxPlaces = getAutoMaxPlaces();
+                    int durationMinutes = getAutoDurationMinutes();
                     boolean includeFood = switchSnack != null && switchSnack.isChecked();
-                    collapseBottomSheet();
-                    generateAutomaticRoute(startPoint, radius, maxPlaces, includeFood);
+
+                    generateAutomaticRoute(startPoint, radius, maxPlaces, durationMinutes, includeFood);
                 }
             });
         }
@@ -867,43 +850,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 .show();
     }
 
-    private void showAutoRouteParamsDialog(Point start) {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        layout.setPadding(pad, pad, pad, pad);
-
-        EditText etRadius = new EditText(this);
-        etRadius.setHint("Радиус, м");
-        etRadius.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        etRadius.setText(String.valueOf(DEFAULT_RADIUS_METERS));
-        layout.addView(etRadius);
-
-        EditText etMaxPlaces = new EditText(this);
-        etMaxPlaces.setHint("Максимум точек");
-        etMaxPlaces.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
-        etMaxPlaces.setText(String.valueOf(DEFAULT_MAX_PLACES));
-        layout.addView(etMaxPlaces);
-
-        CheckBox cbFood = new CheckBox(this);
-        cbFood.setText("Добавить кафе");
-        cbFood.setChecked(switchSnack != null && switchSnack.isChecked());
-        layout.addView(cbFood);
-
-        new AlertDialog.Builder(this)
-                .setTitle("Параметры маршрута")
-                .setView(layout)
-                .setPositiveButton("Построить", (dialog, which) -> {
-                    int radius = parsePositiveInt(etRadius.getText().toString(), DEFAULT_RADIUS_METERS);
-                    int maxPlaces = parsePositiveInt(etMaxPlaces.getText().toString(), DEFAULT_MAX_PLACES);
-                    boolean includeFood = cbFood.isChecked();
-
-                    generateAutomaticRoute(start, radius, maxPlaces, includeFood);
-                })
-                .setNegativeButton("Отмена", null)
-                .show();
-    }
-
     private int parsePositiveInt(String raw, int fallback) {
         try {
             int value = Integer.parseInt(raw.trim());
@@ -961,12 +907,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             bottomSheetBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
         }
     }
-    private void generateAutomaticRoute(Point start, int radius, int maxPlaces, boolean includeFood) {
-        if (start == null) {
-            Toast.makeText(this, "Сначала выберите стартовую точку", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
+    private void generateAutomaticRoute(Point start, int radius, int maxPlaces, int durationMinutes, boolean includeFood) {
         SharedPreferences prefs = getSharedPreferences("user_prefs", MODE_PRIVATE);
         Set<String> userCategories = prefs.getStringSet("categories", new HashSet<>());
         Set<String> backendCategories = mapUserCategoriesToBackend(userCategories);
@@ -984,6 +925,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                 backendCategories,
                 radius,
                 maxPlaces,
+                durationMinutes,
                 includeFood,
                 new RouteApi.GenerateRouteCallback() {
                     @Override
@@ -1392,6 +1334,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     public void onSuccess(List<GeoapifyClient.Place> places) {
                         runOnUiThread(() -> {
                             clearNearbyPlaces();
+                            selectedPoints.clear();
 
                             // ✅ Стартовая точка = геопозиция, но в план не добавляем
                             startPoint = userLocation;
@@ -1411,11 +1354,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
                             updateBuildRouteButton();
                             updateStartHeader();
-
-                            if (currentRoute != null) {
-                                clearCurrentRouteOnly();
-                                buildOptimalRoute();
-                            }
                             Toast.makeText(MainActivity.this,
                                     "Точки вокруг геопозиции загружены. Стартовая точка добавлена.",
                                     Toast.LENGTH_LONG).show();
@@ -1435,6 +1373,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         if (place == null || place.location == null) return;
 
         if (selectedMarkers.contains(marker)) {
+            // ❌ УБРАТЬ из маршрута
             selectedMarkers.remove(marker);
             selectedPoints.remove(place.location);
 
@@ -1537,11 +1476,6 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             updateStartHeader();
             updateBuildRouteButton();
             collapseBottomSheet();
-
-            if (currentRoute != null) {
-                clearCurrentRouteOnly();
-                buildOptimalRoute();
-            }
             return;
         }
 
@@ -1671,10 +1605,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
      * Построение оптимального маршрута
      */
     private void buildOptimalRoute() {
-        int count = selectedPoints.size();
-        if (startPoint != null) count++;
-
-        if (count < 2) {
+        if (selectedPoints.size() < 2) {
             Toast.makeText(this, "Недостаточно точек для построения маршрута", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -1902,7 +1833,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         routeMode = false;
         awaitingAutoStartPoint = false;
         isGeneratingAutoRoute = false;
-        currentBuildMode = RouteBuildMode.AUTO;
+        currentBuildMode = RouteBuildMode.NONE;
 
         currentRoute = null;
         currentPointIndex = 0;
@@ -2148,6 +2079,11 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         }
     }
 
+    private int getAutoDurationMinutes() {
+        if (sliderDurationHours == null) return 180;
+        int hours = Math.round(sliderDurationHours.getValue());
+        return hours * 60;
+    }
 
     /**
      * Обработчик результата запроса разрешений на геопозицию.
