@@ -40,3 +40,7 @@ type SearchPlacesUseCase interface {
 type GenerateRouteUseCase interface {
 	Execute(ctx context.Context, req dto.GenerateRouteRequest) (dto.GenerateRouteResponse, error)
 }
+
+type SaveRouteUseCase interface {
+	Execute(ctx context.Context, req dto.SaveRouteRequest) error
+}
