@@ -56,6 +56,10 @@
             android:name="ru.nsu.yousightseeing.features.ProfileActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".features.RouteResultActivity"
+            android:exported="false"/>
+
     </application>
 
 </manifest>
