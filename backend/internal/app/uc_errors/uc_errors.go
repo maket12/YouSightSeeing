@@ -27,6 +27,8 @@ var (
 	ExpiredRefreshTokenError  = errors.New("expired refresh token")
 	RevokedRefreshTokenError  = errors.New("refresh token has already been revoked")
 
+	CreateRouteError = errors.New("failed to create route")
+
 	GenerateAccessTokenError  = errors.New("failed to generate new access token")
 	GenerateRefreshTokenError = errors.New("failed to generate new refresh token")
 
