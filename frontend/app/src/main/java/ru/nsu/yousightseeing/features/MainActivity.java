@@ -46,6 +46,8 @@ import com.yandex.mapkit.search.Session;
 import com.yandex.runtime.Error;
 import com.yandex.runtime.image.ImageProvider;
 import com.yandex.mapkit.GeoObjectCollection;
+import com.yandex.mapkit.map.MapObject;
+import com.yandex.mapkit.map.MapObjectTapListener;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -165,6 +167,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     // Последняя точка, вокруг которой загружались POI
     private Point lastPoiCenter = null;
 
+    private boolean expandEditorOnResume = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -180,6 +184,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         initializeUI();
         initializeSearch();
+        handleBuilderIntent(getIntent());
     }
 
     /**
@@ -402,6 +407,10 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             TextView tvSubtitle = item.findViewById(R.id.tvPlaceSubtitle);
             ImageButton btnRemove = item.findViewById(R.id.btnRemovePlace);
             View pill = item.findViewById(R.id.placePill);
+            ImageButton btnMoveUp = item.findViewById(R.id.btnMoveUp);
+            ImageButton btnMoveDown = item.findViewById(R.id.btnMoveDown);
+
+            final int currentIndex = routePoints.indexOf(point);
 
             String title;
             if (place != null && place.name != null && !place.name.isEmpty()) {
@@ -441,8 +450,42 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             btnRemove.setOnClickListener(removeListener);
             pill.setOnClickListener(removeListener);
 
+            btnMoveUp.setOnClickListener(v -> moveRoutePoint(currentIndex, currentIndex - 1));
+            btnMoveDown.setOnClickListener(v -> moveRoutePoint(currentIndex, currentIndex + 1));
+
+            btnMoveUp.setEnabled(currentIndex > 0);
+            btnMoveDown.setEnabled(currentIndex < routePoints.size() - 1);
+
             placesContainer.addView(item);
         }
+    }
+
+    private void moveRoutePoint(int from, int to) {
+        if (startPoint == null) return;
+
+        List<Point> routePoints = new ArrayList<>();
+        for (Point p : selectedPoints) {
+            if (distanceInMeters(startPoint, p) < 5.0) continue;
+            routePoints.add(p);
+        }
+
+        if (from < 0 || from >= routePoints.size()) return;
+        if (to < 0 || to >= routePoints.size()) return;
+
+        Point moved = routePoints.remove(from);
+        routePoints.add(to, moved);
+
+        List<Point> newSelectedPoints = new ArrayList<>();
+        if (startPoint != null) {
+            newSelectedPoints.add(startPoint);
+        }
+        newSelectedPoints.addAll(routePoints);
+
+        selectedPoints.clear();
+        selectedPoints.addAll(newSelectedPoints);
+
+        updateSelectedPlacesList();
+        updateBuildRouteButton();
     }
 
     /**
@@ -632,9 +675,13 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     return;
                 }
 
-                applyBuildModeUI(RouteBuildMode.MANUAL);
+                currentBuildMode = RouteBuildMode.MANUAL;
                 routeMode = true;
                 poiMode = false;
+
+                if (toggleRouteMode != null) {
+                    toggleRouteMode.check(R.id.btnModeManual);
+                }
 
                 if (startPoint == null) {
                     Toast.makeText(this, "Сначала выберите отправную точку", Toast.LENGTH_SHORT).show();
@@ -642,7 +689,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     return;
                 }
 
-                if (poiMarkers.isEmpty() || lastPoiCenter == null || distanceInMeters(startPoint, lastPoiCenter) > 100) {
+                if (poiMarkers.isEmpty()) {
                     searchNearbyPlaces(
                             startPoint.getLatitude(),
                             startPoint.getLongitude(),
@@ -655,8 +702,8 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                             Toast.LENGTH_LONG).show();
                 }
 
+                collapseBottomSheet();
                 updateBuildRouteButton();
-                updateBottomSheetState();
             });
         }
 
@@ -984,36 +1031,15 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     }
 
     private void displayGeneratedRoute(RouteApi.GeneratedRouteResult result) {
-        selectedMarkers.clear();
-        selectedPoints.clear();
+        prepareEditableDraftFromGeneratedRoute(result);
 
-        if (startPoint != null) {
-            showStartPoint(startPoint);
-        }
-
-        if (result.places != null) {
-            displayGeneratedPlaces(result.places);
-        }
-
-        if (result.routePoints != null && !result.routePoints.isEmpty()) {
-            displayRoute(result.routePoints, result.distance);
-        }
-
-        currentBuildMode = RouteBuildMode.MANUAL;
-        toggleRouteMode.check(R.id.btnModeManual);
-
-        updateSelectedPlacesList();
-
-        collapseBottomSheet();
-
-        String message = "Маршрут построен";
-        if (result.distance > 0 && result.duration > 0) {
-            message += String.format(" • %.1f км • %.0f мин",
-                    result.distance / 1000.0,
-                    result.duration / 60.0);
-        }
-
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        String placesJson = serializeManualPlacesOrdered();
+        openRouteResultScreen(
+                result.routePoints,
+                placesJson,
+                result.distance,
+                result.duration
+        );
     }
 
     private void clearCurrentRouteOnly() {
@@ -1280,10 +1306,9 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             if (!alreadyExists) {
                 PlacemarkMapObject marker = mapObjects.addPlacemark(place.location);
                 marker.setUserData(place);
-                poiMarkers.add(marker);
-
-                // 🔹 Здесь используем иконку pinm
                 marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+                marker.addTapListener(poiTapListener);
+                poiMarkers.add(marker);
             }
         }
 
@@ -1292,9 +1317,28 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         poiMode = true;
         updateBuildRouteButton();
         updateSelectedPlacesList();
-        updateBottomSheetState();
     }
 
+    private void handleBuilderIntent(Intent intent) {
+        if (intent == null) return;
+
+        if (intent.getBooleanExtra("reset_builder", false)) {
+            resetRoute();
+
+            currentBuildMode = RouteBuildMode.MANUAL;
+
+            if (toggleRouteMode != null) {
+                toggleRouteMode.check(R.id.btnModeManual);
+            }
+
+            if (manualSection != null) manualSection.setVisibility(View.VISIBLE);
+            if (autoSection != null) autoSection.setVisibility(View.GONE);
+
+            expandBottomSheet();
+
+            intent.removeExtra("reset_builder");
+        }
+    }
 
     /**
      * Очищает только маркеры POI, оставляя маршрут и пользовательские точки.
@@ -1348,6 +1392,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                                             .getMap().getMapObjects().addPlacemark(place.location);
                                     marker.setIcon(ImageProvider.fromResource(MainActivity.this, R.drawable.pinm));
                                     marker.setUserData(place);
+                                    marker.addTapListener(poiTapListener);
                                     poiMarkers.add(marker);
                                 }
                             }
@@ -1368,6 +1413,7 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
                     }
                 });
     }
+
     private void togglePlaceInRoute(PlacemarkMapObject marker) {
         GeoapifyClient.Place place = (GeoapifyClient.Place) marker.getUserData();
         if (place == null || place.location == null) return;
@@ -1503,27 +1549,19 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
             updateBottomSheetState();
             return;
         }
-
-        PlacemarkMapObject tappedMarker = null;
-
-        for (PlacemarkMapObject marker : poiMarkers) {
-            GeoapifyClient.Place markerPlace = (GeoapifyClient.Place) marker.getUserData();
-            if (markerPlace != null && markerPlace.location != null) {
-                double distance = distanceBetween(point, markerPlace.location);
-                if (distance < 0.0005) {
-                    tappedMarker = marker;
-                    break;
-                }
-            }
-        }
-
-        if (tappedMarker != null) {
-            showPoiInfoDialog(tappedMarker);
-        } else {
-            addCustomPointFromTap(point);
-        }
+        addCustomPointFromTap(point);
     }
 
+    private final MapObjectTapListener poiTapListener = (mapObject, point) -> {
+        if (!(mapObject instanceof PlacemarkMapObject)) return false;
+
+        PlacemarkMapObject marker = (PlacemarkMapObject) mapObject;
+        Object data = marker.getUserData();
+        if (!(data instanceof GeoapifyClient.Place)) return false;
+
+        showPoiInfoDialog(marker);
+        return true;
+    };
 
     /** Расстояние между двумя точками в градусах (~111м на градус) */
     private double distanceBetween(Point p1, Point p2) {
@@ -1633,18 +1671,17 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
 
         Toast.makeText(this, "Построение оптимального маршрута...", Toast.LENGTH_LONG).show();
 
-        List<Point> optimizedPoints = RouteOptimizer.optimize(pointsToOptimize);
+        List<Point> pointsForRoute = new ArrayList<>(pointsToOptimize);
 
         orsClient.getMultiPointRoute(
                 MainActivity.this,
-                optimizedPoints,
+                pointsForRoute,
                 new OpenRouteServiceClient.ORSCallback() {
                     @Override
-                    public void onSuccess(List<Point> routeCoordinates) {
+                    public void onSuccess(List<Point> routeCoordinates, double distance, double duration) {
                         runOnUiThread(() -> {
-                            displayRoute(routeCoordinates);
-                            btnBuildRoute.setText("Сбросить маршрут");
-                            btnBuildRoute.setEnabled(true);
+                            String placesJson = serializeManualPlacesOrdered();
+                            openRouteResultScreen(routeCoordinates, placesJson, distance, duration);
                         });
                     }
 
@@ -1743,47 +1780,70 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
     private void resetRoute() {
         if (mapView != null && mapView.getMapWindow() != null) {
             MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
-            
-            // Удаляем только те маркеры, которые не находятся в списке выбранных
-            List<PlacemarkMapObject> markersToRemove = new ArrayList<>();
-            for (PlacemarkMapObject marker : poiMarkers) {
-                if (!selectedMarkers.contains(marker)) {
-                    markersToRemove.add(marker);
-                }
-            }
-            
-            for (PlacemarkMapObject marker : markersToRemove) {
-                mapObjects.remove(marker);
-                poiMarkers.remove(marker);
-            }
 
             if (routeLine != null) {
                 mapObjects.remove(routeLine);
                 routeLine = null;
             }
+
+            if (startMarker != null) {
+                mapObjects.remove(startMarker);
+                startMarker = null;
+            }
+
+            for (PlacemarkMapObject marker : poiMarkers) {
+                mapObjects.remove(marker);
+            }
+
+            for (PlacemarkMapObject marker : customMarkers) {
+                try {
+                    mapObjects.remove(marker);
+                } catch (Exception ignored) {
+                }
+            }
+
+            for (PlacemarkMapObject marker : selectedMarkers) {
+                try {
+                    mapObjects.remove(marker);
+                } catch (Exception ignored) {
+                }
+            }
         }
 
-        // Мы больше не очищаем selectedMarkers, selectedPoints и стартовую точку
-        // startPoint = null;
-        // manualStartPoint = null;
-        // manualStartPointMode = false;
-        // selectedMarkers.clear();
-        // selectedPoints.clear();
+        startPoint = null;
+        manualStartPoint = null;
+        lastPoiCenter = null;
 
-        poiMode = false;
-        routeMode = false;
+        manualStartPointMode = false;
         awaitingAutoStartPoint = false;
         isGeneratingAutoRoute = false;
-        currentBuildMode = RouteBuildMode.NONE;
 
         currentRoute = null;
         currentPointIndex = 0;
 
+        poiMode = false;
+        routeMode = false;
+        currentBuildMode = RouteBuildMode.MANUAL;
+
+        selectedMarkers.clear();
+        selectedPoints.clear();
+        poiMarkers.clear();
+        customMarkers.clear();
+
+        showStartPoint(null);
+
+        if (toggleRouteMode != null) {
+            toggleRouteMode.check(R.id.btnModeManual);
+        }
+
+        if (manualSection != null) manualSection.setVisibility(View.VISIBLE);
+        if (autoSection != null) autoSection.setVisibility(View.GONE);
+
         updateBuildRouteButton();
         updateEditCategoriesButton();
         updateSelectedPlacesList();
-        updateBottomSheetState();
         updateStartHeader();
+        expandBottomSheet();
     }
 
     /**
@@ -1973,6 +2033,140 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         Log.d("MainActivity", "Search query submitted: " + query);
     }
 
+    private String serializeRoutePoints(List<Point> routePoints) {
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+
+            for (Point p : routePoints) {
+                org.json.JSONArray pair = new org.json.JSONArray();
+                pair.put(p.getLongitude());
+                pair.put(p.getLatitude());
+                arr.put(pair);
+            }
+
+            return arr.toString();
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
+    private String serializeAutoPlaces(List<PlacesApi.Place> places) {
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+
+            if (places != null) {
+                for (PlacesApi.Place place : places) {
+                    org.json.JSONObject obj = new org.json.JSONObject();
+                    obj.put("name", place.name != null ? place.name : "Точка");
+                    obj.put("lat", place.lat);
+                    obj.put("lon", place.lon);
+                    arr.put(obj);
+                }
+            }
+
+            return arr.toString();
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
+    private String serializeManualPlacesOrdered() {
+        try {
+            org.json.JSONArray arr = new org.json.JSONArray();
+
+            for (Point p : selectedPoints) {
+                if (startPoint != null && distanceInMeters(startPoint, p) < 5.0) {
+                    continue;
+                }
+
+                org.json.JSONObject obj = new org.json.JSONObject();
+                obj.put("name", findSelectedPlaceName(p));
+                obj.put("lat", p.getLatitude());
+                obj.put("lon", p.getLongitude());
+                arr.put(obj);
+            }
+
+            return arr.toString();
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
+    private String findSelectedPlaceName(Point point) {
+        for (PlacemarkMapObject marker : selectedMarkers) {
+            Object data = marker.getUserData();
+            if (!(data instanceof GeoapifyClient.Place)) continue;
+
+            GeoapifyClient.Place place = (GeoapifyClient.Place) data;
+            if (place.location != null && distanceInMeters(point, place.location) < 5.0) {
+                if (place.name != null && !place.name.isEmpty()) {
+                    return place.name;
+                }
+            }
+        }
+
+        return String.format("Точка (%.5f, %.5f)", point.getLatitude(), point.getLongitude());
+    }
+
+    private void openRouteResultScreen(List<Point> routePoints,
+                                       String placesJson,
+                                       double distance,
+                                       double duration) {
+        expandEditorOnResume = true;
+
+        Intent intent = new Intent(this, RouteResultActivity.class);
+        intent.putExtra(RouteResultActivity.EXTRA_ROUTE_POINTS_JSON, serializeRoutePoints(routePoints));
+        intent.putExtra(RouteResultActivity.EXTRA_PLACES_JSON, placesJson);
+        intent.putExtra(RouteResultActivity.EXTRA_DISTANCE, distance);
+        intent.putExtra(RouteResultActivity.EXTRA_DURATION, duration);
+        startActivity(intent);
+    }
+
+    private void prepareEditableDraftFromGeneratedRoute(RouteApi.GeneratedRouteResult result) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        clearNearbyPlaces();
+        selectedMarkers.clear();
+        selectedPoints.clear();
+        customMarkers.clear();
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+
+        if (result.places != null) {
+            for (PlacesApi.Place place : result.places) {
+                Point location = new Point(place.lat, place.lon);
+
+                GeoapifyClient.Place draftPlace = new GeoapifyClient.Place(
+                        place.name != null && !place.name.isEmpty() ? place.name : "Точка",
+                        location
+                );
+
+                PlacemarkMapObject marker = mapObjects.addPlacemark(location);
+                marker.setUserData(draftPlace);
+                marker.setIcon(ImageProvider.fromResource(this, android.R.drawable.btn_star_big_on));
+
+                selectedMarkers.add(marker);
+                customMarkers.add(marker);
+                selectedPoints.add(location);
+            }
+        }
+
+        currentBuildMode = RouteBuildMode.MANUAL;
+        routeMode = true;
+        poiMode = false;
+        currentRoute = null;
+
+        if (toggleRouteMode != null) {
+            toggleRouteMode.check(R.id.btnModeManual);
+        }
+
+        if (manualSection != null) manualSection.setVisibility(View.VISIBLE);
+        if (autoSection != null) autoSection.setVisibility(View.GONE);
+
+        updateSelectedPlacesList();
+        updateBuildRouteButton();
+    }
+
     /**
      * Получает последнюю известную геопозицию пользователя и центрирует карту.
      */
@@ -2106,6 +2300,15 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (expandEditorOnResume) {
+            expandBottomSheet();
+            expandEditorOnResume = false;
+        }
+    }
 
     @Override
     public void onSearchResponse(Response response) {
@@ -2204,5 +2407,12 @@ public class MainActivity extends AppCompatActivity implements Session.SearchLis
         MapKitFactory.getInstance().onStop();
         if (searchSession != null) searchSession.cancel();
         super.onStop();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleBuilderIntent(intent);
     }
 }
