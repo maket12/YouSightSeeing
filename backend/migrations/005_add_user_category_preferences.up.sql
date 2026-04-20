@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS user_category_preferences (
 
     CONSTRAINT user_category_preferences_user_category_unique
     UNIQUE (user_id, category)
-    );
+);
 
 CREATE INDEX idx_user_category_preferences_user_id
     ON user_category_preferences(user_id);

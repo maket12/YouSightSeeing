@@ -9,6 +9,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -27,17 +29,20 @@ type GenerateRouteUC struct {
 	searchPlacesUC   SearchPlacesUseCase
 	calculateUC      CalculateRouteUseCase
 	matrixCalculator port.RouteMatrixCalculator
+	preferencesRepo  port.UserCategoryPreferencesRepository
 }
 
 func NewGenerateRouteUC(
 	searchPlacesUC SearchPlacesUseCase,
 	calculateUC CalculateRouteUseCase,
 	matrixCalculator port.RouteMatrixCalculator,
+	preferencesRepo port.UserCategoryPreferencesRepository,
 ) *GenerateRouteUC {
 	return &GenerateRouteUC{
 		searchPlacesUC:   searchPlacesUC,
 		calculateUC:      calculateUC,
 		matrixCalculator: matrixCalculator,
+		preferencesRepo:  preferencesRepo,
 	}
 }
 
@@ -63,7 +68,15 @@ func (uc *GenerateRouteUC) Execute(
 	}
 
 	timeBudgetSeconds := float64(req.DurationMinutes * 60)
-	categories := normalizeCategories(req.Categories, req.IncludeFood)
+
+	preferenceWeights, requestedCategories := uc.resolvePreferenceWeights(
+		ctx,
+		req.UserID,
+		req.Categories,
+		req.IncludeFood,
+	)
+
+	categories := normalizeCategories(requestedCategories, req.IncludeFood)
 
 	searchResp, err := uc.searchPlacesUC.Execute(ctx, dto.SearchPlacesRequest{
 		Lat:        req.StartLat,
@@ -72,13 +85,15 @@ func (uc *GenerateRouteUC) Execute(
 		Categories: categories,
 		Limit:      max(req.MaxPlaces*4, 20),
 	})
+
 	if err != nil {
 		return dto.GenerateRouteResponse{}, err
 	}
 
 	candidates := buildRecommendationCandidates(
 		searchResp.Places,
-		req.Categories,
+		requestedCategories,
+		preferenceWeights,
 		req.StartLat,
 		req.StartLon,
 		req.Radius,
@@ -157,6 +172,7 @@ type recommendationCandidate struct {
 func buildRecommendationCandidates(
 	places []dto.Place,
 	requestedCategories []string,
+	preferenceWeights map[string]float64,
 	startLat float64,
 	startLon float64,
 	radius int,
@@ -164,7 +180,6 @@ func buildRecommendationCandidates(
 ) []recommendationCandidate {
 	uniquePlaces := deduplicatePlaces(places)
 	normalizedRequested := normalizeRequestedRegularCategories(requestedCategories)
-	preferenceWeights := buildPreferenceWeights(normalizedRequested, includeFood)
 
 	result := make([]recommendationCandidate, 0, len(uniquePlaces))
 
@@ -211,6 +226,92 @@ func buildRecommendationCandidates(
 	})
 
 	return result
+}
+
+func (uc *GenerateRouteUC) resolvePreferenceWeights(
+	ctx context.Context,
+	userID uuid.UUID,
+	explicitCategories []string,
+	includeFood bool,
+) (map[string]float64, []string) {
+	storedWeights := make(map[string]float64)
+
+	if uc.preferencesRepo != nil && userID != uuid.Nil {
+		if items, err := uc.preferencesRepo.GetByUserID(ctx, userID); err == nil {
+			for _, item := range items {
+				storedWeights[item.Category] = item.Weight
+			}
+		}
+	}
+
+	weights := buildPreferenceWeights(nil, includeFood)
+
+	for category, weight := range storedWeights {
+		weights[category] = weight
+	}
+
+	if len(explicitCategories) > 0 {
+		requested := normalizeRequestedRegularCategories(explicitCategories)
+		for _, category := range requested {
+			weights[category] = 1.0
+		}
+		if includeFood {
+			weights["catering.cafe"] = maxFloat(weights["catering.cafe"], 0.45)
+		}
+		return weights, requested
+	}
+
+	requested := deriveRequestedCategoriesFromWeights(weights)
+	if len(requested) == 0 {
+		requested = []string{"tourism.sights", "leisure.park"}
+	}
+
+	return weights, requested
+}
+
+func deriveRequestedCategoriesFromWeights(weights map[string]float64) []string {
+	type pair struct {
+		Category string
+		Weight   float64
+	}
+
+	items := make([]pair, 0, len(weights))
+	for category, weight := range weights {
+		if hasCategoryPrefix(category, "catering.") {
+			continue
+		}
+		items = append(items, pair{
+			Category: category,
+			Weight:   weight,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Weight == items[j].Weight {
+			return items[i].Category < items[j].Category
+		}
+		return items[i].Weight > items[j].Weight
+	})
+
+	result := make([]string, 0, 3)
+	for _, item := range items {
+		if item.Weight < 0.55 {
+			continue
+		}
+		result = append(result, item.Category)
+		if len(result) >= 3 {
+			break
+		}
+	}
+
+	return result
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func buildPreferenceWeights(requestedCategories []string, includeFood bool) map[string]float64 {

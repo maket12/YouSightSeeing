@@ -60,6 +60,14 @@ func (h *RouteHandler) GenerateRoute(c echo.Context) error {
 		})
 	}
 
+	userID, ok := GetUserIDFromContext(c)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Authorization header required",
+		})
+	}
+	req.UserID = userID
+
 	resp, err := h.GenerateRouteUC.Execute(c.Request().Context(), req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)

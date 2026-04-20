@@ -37,4 +37,8 @@ var (
 	ErrSearchPlacesFailed  = errors.New("failed to search places")
 	ErrInvalidSearchRadius = errors.New("search radius must be positive")
 	ErrInvalidCoordinates  = errors.New("invalid coordinates")
+
+	ErrEmptyPreferenceCategory = errors.New("preference category is required")
+	ErrInvalidPreferenceWeight = errors.New("preference weight must be between 0 and 1")
+	ErrInvalidUserEventType    = errors.New("invalid user event type")
 )

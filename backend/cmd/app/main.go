@@ -66,6 +66,7 @@ func main() {
 	// ======================
 	usersRepo := adapterdb.NewUserRepository(db)
 	rTokensRepo := adapterdb.NewRefreshTokensRepository(db)
+	userPreferencesRepo := adapterdb.NewUserCategoryPreferencesRepository(db)
 	googleVerfRepo := adaptergv.NewOAuthVerifier(cfg.GoogleClientID)
 	tokensGeneratorRepo := adaptertg.NewTokensGenerator(
 		cfg.AccessSecret,
@@ -96,7 +97,12 @@ func main() {
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 	searchPlacesUC := usecase.NewSearchPlacesUC(placesService)
-	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC, routeMatrixCalculator)
+	generateRouteUC := usecase.NewGenerateRouteUC(
+		searchPlacesUC,
+		calculateRouteUC,
+		routeMatrixCalculator,
+		userPreferencesRepo,
+	)
 
 	// ======================
 	// 6. Handlers (REST)

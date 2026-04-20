@@ -53,6 +53,9 @@ func HttpError(err error) (int, string, error) {
 		errors.Is(err, uc_errors.EmptyRefreshTokenError),
 		errors.Is(err, uc_errors.InvalidUserID),
 		errors.Is(err, uc_errors.ErrInvalidSearchRadius),
+		errors.Is(err, uc_errors.ErrEmptyPreferenceCategory),
+		errors.Is(err, uc_errors.ErrInvalidPreferenceWeight),
+		errors.Is(err, uc_errors.ErrInvalidUserEventType),
 		errors.Is(err, uc_errors.ErrInvalidCoordinates):
 		return http.StatusBadRequest, err.Error(), nil
 	}
