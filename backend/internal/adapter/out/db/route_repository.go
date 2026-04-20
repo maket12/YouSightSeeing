@@ -40,8 +40,8 @@ func (r *RouteRepository) Create(ctx context.Context, route *entity.Route) error
 	return nil
 }
 
-// GetByID — Получение одного маршрута по ID
-func (r *RouteRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Route, error) {
+// Get — Получение одного маршрута по ID
+func (r *RouteRepository) Get(ctx context.Context, id uuid.UUID) (*entity.Route, error) {
 	query := `SELECT * FROM routes WHERE id = $1`
 
 	var route entity.Route
