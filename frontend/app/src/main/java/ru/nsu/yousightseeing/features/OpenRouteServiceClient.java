@@ -11,7 +11,7 @@ import ru.nsu.yousightseeing.api.RouteApi;
 public class OpenRouteServiceClient {
 
     public interface ORSCallback {
-        void onSuccess(List<Point> routePoints);
+        void onSuccess(List<Point> routeCoordinates, double distance, double duration);
         void onError(String errorMessage);
     }
 
@@ -26,9 +26,8 @@ public class OpenRouteServiceClient {
 
         RouteApi.calculateRoute(ctx, points, false, new RouteApi.RouteCallback() {
             @Override
-            public void onSuccess(List<Point> routePoints, double distance, double duration) {
-                // distance/duration можно потом использовать при сохранении Route
-                callback.onSuccess(routePoints);
+            public void onSuccess(List<Point> points, double distance, double duration) {
+                callback.onSuccess(points, distance, duration);
             }
 
             @Override
