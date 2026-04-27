@@ -1,9 +1,7 @@
-package ru.nsu.yousightseeing.features;
+package ru.nsu.yousightseeing.api;
 
 import android.content.Context;
-import com.yandex.mapkit.geometry.Point;
-import ru.nsu.yousightseeing.api.PlacesApi;
-import java.util.ArrayList;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -29,18 +27,8 @@ public class GeoapifyClient {
         this.context = context;
     }
 
-    public static class Place {
-        public String name;
-        public Point location;
-
-        public Place(String name, Point location) {
-            this.name = name;
-            this.location = location;
-        }
-    }
-
     public interface GeoapifyCallback {
-        void onSuccess(List<Place> places);
+        void onSuccess(List<PlacesApi.Place> places);
         void onError(String errorMessage);
     }
 
@@ -71,12 +59,7 @@ public class GeoapifyClient {
                 new PlacesApi.PlacesCallback() {
                     @Override
                     public void onSuccess(List<PlacesApi.Place> placesApi) {
-                        List<GeoapifyClient.Place> geoPlaces = new ArrayList<>();
-                        for (PlacesApi.Place p : placesApi) {
-                            Point point = new Point(p.lat, p.lon);
-                            geoPlaces.add(new GeoapifyClient.Place(p.name, point));
-                        }
-                        callback.onSuccess(geoPlaces);
+                        callback.onSuccess(placesApi);
                     }
 
                     @Override

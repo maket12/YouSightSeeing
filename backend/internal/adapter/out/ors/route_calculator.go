@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -62,7 +63,8 @@ func (a *RouteCalculator) CalculateRoute(ctx context.Context, req entity.ORSRequ
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ors api returned error status: %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("ors api returned error status: %d body=%q", resp.StatusCode, string(body))
 	}
 	var raw orsResponseRaw
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {

@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -30,7 +31,10 @@ public final class RouteApi {
     private static final String TAG = "RouteApi";
     private static final MediaType JSON =
             MediaType.get("application/json; charset=utf-8");
-    private static final OkHttpClient client = new OkHttpClient();
+    private static final OkHttpClient client = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build();
 
     public interface RouteCallback {
         void onSuccess(List<Point> points, double distance, double duration);
@@ -112,16 +116,25 @@ public final class RouteApi {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "calculateRoute failure", e);
-                cb.onError("Ошибка сети: " + e.getMessage());
+                if (!alreadyRetried) {
+                    Log.w(TAG, "Request failed, retrying...", e);
+                    performCalculateRoute(ctx, points, optimizeOrder, cb, true);
+                } else {
+                    Log.e(TAG, "FULL ERROR after retry", e);
+                    cb.onError("Сервер оборвал соединение (backend упал)");
+                }
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 String respBody = response.body() != null ? response.body().string() : "";
+                if (respBody == null || respBody.isEmpty()) {
+                    cb.onError("Пустой ответ от сервера");
+                    return;
+                }
 
                 if (response.code() == 401
-                        && respBody.contains("token is expired")
+                        && (respBody.contains("expired") || respBody.contains("token is expired"))
                         && !alreadyRetried) {
 
                     Log.w(TAG, "Access token expired, trying to refresh");
@@ -245,9 +258,9 @@ public final class RouteApi {
             if (maxPlaces > 0) {
                 bodyJson.put("max_places", maxPlaces);
             }
-            if (durationMinutes > 0) {
-                bodyJson.put("duration_minutes", durationMinutes);
-            }
+            // if (durationMinutes > 0) {
+            //     bodyJson.put("duration_minutes", durationMinutes);
+            // }
 
             bodyJson.put("include_food", includeFood);
 
@@ -266,16 +279,37 @@ public final class RouteApi {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "generateRoute failure", e);
-                cb.onError("Ошибка сети: " + e.getMessage());
+                if (!alreadyRetried) {
+                    Log.w(TAG, "Request failed, retrying...", e);
+                    performGenerateRoute(
+                            ctx,
+                            startLat,
+                            startLon,
+                            categories,
+                            radius,
+                            maxPlaces,
+                            durationMinutes,
+                            includeFood,
+                            cb,
+                            true // This is the retry attempt
+                    );
+                } else {
+                    Log.e(TAG, "FULL ERROR after retry", e);
+                    cb.onError("Сервер оборвал соединение (backend упал)");
+                }
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 String respBody = response.body() != null ? response.body().string() : "";
+                Log.d("ROUTE_DEBUG", "Response = " + respBody);
+                if (respBody == null || respBody.isEmpty()) {
+                    cb.onError("Пустой ответ от сервера");
+                    return;
+                }
 
                 if (response.code() == 401
-                        && respBody.contains("expired")
+                        && (respBody.contains("expired") || respBody.contains("token is expired"))
                         && !alreadyRetried) {
 
                     Log.w(TAG, "Generate route token expired, trying to refresh");
@@ -324,12 +358,15 @@ public final class RouteApi {
                         }
                     }
 
-                    JSONObject routeJson = json.getJSONObject("route");
-                    JSONArray pointsJson = routeJson.getJSONArray("points");
-
-                    result.routePoints = parseRoutePoints(pointsJson);
-                    result.distance = routeJson.optDouble("distance", 0.0);
-                    result.duration = routeJson.optDouble("duration", 0.0);
+                    JSONObject routeJson = json.optJSONObject("route");
+                    if (routeJson != null) {
+                        JSONArray pointsJson = routeJson.optJSONArray("points");
+                        if (pointsJson != null) {
+                            result.routePoints = parseRoutePoints(pointsJson);
+                        }
+                        result.distance = routeJson.optDouble("distance", 0.0);
+                        result.duration = routeJson.optDouble("duration", 0.0);
+                    }
 
                     cb.onSuccess(result);
 

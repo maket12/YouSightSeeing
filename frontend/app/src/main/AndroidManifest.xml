@@ -57,8 +57,11 @@
             android:exported="false" />
 
         <activity
-            android:name=".features.RouteResultActivity"
+            android:name=".features.route.RouteResultActivity"
             android:exported="false"/>
+
+        <activity android:name=".features.route.RouteConfirmationActivity" />
+        <activity android:name=".features.route.RouteFinalActivity" />
 
     </application>
 

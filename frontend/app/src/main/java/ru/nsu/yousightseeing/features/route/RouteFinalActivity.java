@@ -1,4 +1,4 @@
-package ru.nsu.yousightseeing.features;
+package ru.nsu.yousightseeing.features.route;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -29,7 +29,9 @@ import com.yandex.mapkit.map.PolylineMapObject;
 import com.yandex.mapkit.mapview.MapView;
 import com.yandex.runtime.image.ImageProvider;
 
-public class RouteResultActivity extends AppCompatActivity {
+import ru.nsu.yousightseeing.features.MainActivity;
+
+public class RouteFinalActivity extends AppCompatActivity {
 
     public static final String EXTRA_ROUTE_POINTS_JSON = "route_points_json";
     public static final String EXTRA_PLACES_JSON = "places_json";
@@ -41,28 +43,26 @@ public class RouteResultActivity extends AppCompatActivity {
     private TextView tvDuration;
     private TextView tvPlacesCount;
     private LinearLayout placesContainer;
-    private Button btnEditRoute;
     private Button btnNewRoute;
 
     private PolylineMapObject routeLine;
 
-    private Button btnZoomInResult;
-    private Button btnZoomOutResult;
+    private Button btnZoomInFinal;
+    private Button btnZoomOutFinal;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_route_result);
+        setContentView(R.layout.activity_route_final);
 
-        mapView = findViewById(R.id.mapViewResult);
+        mapView = findViewById(R.id.mapViewFinal);
         tvDistance = findViewById(R.id.tvDistance);
         tvDuration = findViewById(R.id.tvDuration);
         tvPlacesCount = findViewById(R.id.tvPlacesCount);
-        placesContainer = findViewById(R.id.placesContainerResult);
-        btnEditRoute = findViewById(R.id.btnEditRoute);
+        placesContainer = findViewById(R.id.placesContainerFinal);
         btnNewRoute = findViewById(R.id.btnNewRoute);
-        btnZoomInResult = findViewById(R.id.btnZoomInResult);
-        btnZoomOutResult = findViewById(R.id.btnZoomOutResult);
+        btnZoomInFinal = findViewById(R.id.btnZoomInFinal);
+        btnZoomOutFinal = findViewById(R.id.btnZoomOutFinal);
 
 
         List<Point> routePoints = parseRoutePoints(
@@ -79,8 +79,6 @@ public class RouteResultActivity extends AppCompatActivity {
         renderPlaces(places);
         renderRoute(routePoints, places);
 
-        btnEditRoute.setOnClickListener(v -> finish());
-
         btnNewRoute.setOnClickListener(v -> {
             Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -89,8 +87,8 @@ public class RouteResultActivity extends AppCompatActivity {
             finish();
         });
 
-        btnZoomInResult.setOnClickListener(v -> zoomIn());
-        btnZoomOutResult.setOnClickListener(v -> zoomOut());
+        btnZoomInFinal.setOnClickListener(v -> zoomIn());
+        btnZoomOutFinal.setOnClickListener(v -> zoomOut());
     }
 
     private void zoomIn() {
@@ -242,7 +240,7 @@ public class RouteResultActivity extends AppCompatActivity {
                 result.add(new Point(lat, lon));
             }
         } catch (Exception e) {
-            Log.e("RouteResultActivity", "parseRoutePoints error", e);
+            Log.e("RouteFinalActivity", "parseRoutePoints error", e);
         }
 
         return result;
@@ -265,7 +263,7 @@ public class RouteResultActivity extends AppCompatActivity {
                 result.add(item);
             }
         } catch (Exception e) {
-            Log.e("RouteResultActivity", "parsePlaces error", e);
+            Log.e("RouteFinalActivity", "parsePlaces error", e);
         }
 
         return result;
