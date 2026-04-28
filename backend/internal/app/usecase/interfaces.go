@@ -52,3 +52,7 @@ type UpdateUserPreferencesUseCase interface {
 type TrackUserEventUseCase interface {
 	Execute(ctx context.Context, req dto.TrackUserEventRequest) (dto.TrackUserEventResponse, error)
 }
+
+type UpdatePreferenceWeightsUseCase interface {
+	Execute(ctx context.Context, req dto.UpdatePreferenceWeightsRequest) (dto.UpdatePreferenceWeightsResponse, error)
+}

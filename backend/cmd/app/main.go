@@ -67,6 +67,7 @@ func main() {
 	usersRepo := adapterdb.NewUserRepository(db)
 	rTokensRepo := adapterdb.NewRefreshTokensRepository(db)
 	userPreferencesRepo := adapterdb.NewUserCategoryPreferencesRepository(db)
+	userEventRepo := adapterdb.NewUserEventRepository(db)
 	googleVerfRepo := adaptergv.NewOAuthVerifier(cfg.GoogleClientID)
 	tokensGeneratorRepo := adaptertg.NewTokensGenerator(
 		cfg.AccessSecret,
@@ -103,6 +104,11 @@ func main() {
 		routeMatrixCalculator,
 		userPreferencesRepo,
 	)
+	updatePreferenceWeightsUC := usecase.NewUpdatePreferenceWeightsUC(userPreferencesRepo)
+	trackUserEventUC := usecase.NewTrackUserEventUCWithPreferenceUpdater(
+		userEventRepo,
+		updatePreferenceWeightsUC,
+	)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -117,6 +123,7 @@ func main() {
 	)
 	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
+	eventHandler := adapterhttp.NewEventHandler(logger, trackUserEventUC)
 
 	// ======================
 	// 7. Router
@@ -127,6 +134,7 @@ func main() {
 		userHandler,
 		routeHandler,
 		placesHandler,
+		eventHandler,
 	).InitRoutes()
 
 	// ======================

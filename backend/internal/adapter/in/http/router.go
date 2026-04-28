@@ -17,15 +17,17 @@ type Router struct {
 	user   *UserHandler
 	route  *RouteHandler
 	place  *PlacesHandler
+	event  *EventHandler
 }
 
-func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler, places *PlacesHandler) *Router {
+func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler, places *PlacesHandler, event *EventHandler) *Router {
 	return &Router{
 		jwtgen: jwtGen,
 		auth:   auth,
 		user:   users,
 		route:  route,
 		place:  places,
+		event:  event,
 	}
 }
 
@@ -62,6 +64,10 @@ func (r *Router) InitRoutes() *echo.Echo {
 		placesGroup := privateApi.Group("/places")
 		{
 			placesGroup.POST("/search", r.place.Search)
+		}
+		eventsGroup := privateApi.Group("/events")
+		{
+			eventsGroup.POST("", r.event.TrackEvent)
 		}
 	}
 

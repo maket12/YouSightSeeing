@@ -6,13 +6,15 @@ import (
 	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 type TrackUserEventUC struct {
-	repo port.UserEventRepository
+	repo                port.UserEventRepository
+	preferenceWeightsUC UpdatePreferenceWeightsUseCase
 }
 
 func NewTrackUserEventUC(repo port.UserEventRepository) *TrackUserEventUC {
@@ -21,11 +23,21 @@ func NewTrackUserEventUC(repo port.UserEventRepository) *TrackUserEventUC {
 	}
 }
 
+func NewTrackUserEventUCWithPreferenceUpdater(
+	repo port.UserEventRepository,
+	preferenceWeightsUC UpdatePreferenceWeightsUseCase,
+) *TrackUserEventUC {
+	return &TrackUserEventUC{
+		repo:                repo,
+		preferenceWeightsUC: preferenceWeightsUC,
+	}
+}
+
 func (uc *TrackUserEventUC) Execute(
 	ctx context.Context,
 	req dto.TrackUserEventRequest,
 ) (dto.TrackUserEventResponse, error) {
-	if req.UserID.String() == "" {
+	if req.UserID == uuid.Nil {
 		return dto.TrackUserEventResponse{}, uc_errors.InvalidUserID
 	}
 
@@ -39,16 +51,43 @@ func (uc *TrackUserEventUC) Execute(
 		EventType: req.EventType,
 		RouteID:   req.RouteID,
 		PlaceID:   req.PlaceID,
-		Category:  req.Category,
+		Category:  normalizeOptionalString(req.Category),
 		CreatedAt: time.Now().UTC(),
 	})
 	if err != nil {
 		return dto.TrackUserEventResponse{}, err
 	}
 
+	if uc.preferenceWeightsUC != nil && req.Category != nil {
+		category := strings.TrimSpace(*req.Category)
+		if category != "" {
+			_, err := uc.preferenceWeightsUC.Execute(ctx, dto.UpdatePreferenceWeightsRequest{
+				UserID:    req.UserID,
+				EventType: req.EventType,
+				Category:  category,
+			})
+			if err != nil {
+				return dto.TrackUserEventResponse{}, err
+			}
+		}
+	}
+
 	return dto.TrackUserEventResponse{
 		Created: true,
 	}, nil
+}
+
+func normalizeOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
 }
 
 func isValidUserEventType(eventType string) bool {
