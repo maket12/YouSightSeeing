@@ -33,7 +33,12 @@ func (h *EventHandler) TrackEvent(c echo.Context) error {
 		})
 	}
 
-	userID, ok := GetUserIDFromContext(c)
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid test user id",
+		})
+	}
 	if !ok {
 		return c.JSON(http.StatusUnauthorized, map[string]string{
 			"error": "Authorization header required",

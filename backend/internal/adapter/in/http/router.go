@@ -45,6 +45,12 @@ func (r *Router) InitRoutes() *echo.Echo {
 			authGroup.POST("/refresh", r.auth.RefreshToken)
 			authGroup.POST("/logout", r.auth.Logout)
 		}
+
+		debugGroup := publicApi.Group("/debug")
+		{
+			debugGroup.POST("/events", r.event.TrackEvent)
+			debugGroup.POST("/routes/generate", r.route.GenerateRoute)
+		}
 	}
 
 	privateApi := router.Group("/api")
