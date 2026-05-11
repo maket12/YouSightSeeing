@@ -299,7 +299,7 @@ public class RouteFinalActivity extends AppCompatActivity {
         for (RoutePlaceItem place : places) {
             Point point = new Point(place.lat, place.lon);
             PlacemarkMapObject marker = mapObjects.addPlacemark(point);
-            marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm_selected));
         }
 
         if (!routePoints.isEmpty()) {
