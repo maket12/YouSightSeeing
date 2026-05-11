@@ -103,6 +103,7 @@ func main() {
 		calculateRouteUC,
 		routeMatrixCalculator,
 		userPreferencesRepo,
+		userEventRepo,
 	)
 	updatePreferenceWeightsUC := usecase.NewUpdatePreferenceWeightsUC(userPreferencesRepo)
 	trackUserEventUC := usecase.NewTrackUserEventUCWithPreferenceUpdater(

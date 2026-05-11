@@ -90,11 +90,11 @@ func preferenceDeltaByEventType(eventType string) float64 {
 	case entity.UserEventPlaceViewed:
 		return 0.03
 	case entity.UserEventRouteOpened:
-		return 0.05
+		return 0.04
 	case entity.UserEventRouteSaved:
-		return 0.10
+		return 0.12
 	case entity.UserEventRouteCompleted:
-		return 0.15
+		return 0.08
 	default:
 		return 0
 	}

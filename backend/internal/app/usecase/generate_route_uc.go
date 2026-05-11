@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -23,6 +24,19 @@ const (
 	maxPointDistanceFromStartM   = 2500.0
 	maxPointDistanceFromClusterM = 1200.0
 	maxNearDuplicateDistanceM    = 120.0
+
+	recentUserEventsLimit = 100
+
+	routeGeneratedPlacePenalty = 0.08
+	routeCompletedPlacePenalty = 0.05
+	maxPlacePenalty            = 0.30
+
+	placeViewedBonus = 0.03
+	routeOpenedBonus = 0.02
+	routeSavedBonus  = 0.08
+	maxPlaceBonus    = 0.20
+
+	minCandidateScore = 0.05
 )
 
 type GenerateRouteUC struct {
@@ -30,6 +44,7 @@ type GenerateRouteUC struct {
 	calculateUC      CalculateRouteUseCase
 	matrixCalculator port.RouteMatrixCalculator
 	preferencesRepo  port.UserCategoryPreferencesRepository
+	userEventRepo    port.UserEventRepository
 }
 
 func NewGenerateRouteUC(
@@ -37,12 +52,14 @@ func NewGenerateRouteUC(
 	calculateUC CalculateRouteUseCase,
 	matrixCalculator port.RouteMatrixCalculator,
 	preferencesRepo port.UserCategoryPreferencesRepository,
+	userEventRepo port.UserEventRepository,
 ) *GenerateRouteUC {
 	return &GenerateRouteUC{
 		searchPlacesUC:   searchPlacesUC,
 		calculateUC:      calculateUC,
 		matrixCalculator: matrixCalculator,
 		preferencesRepo:  preferencesRepo,
+		userEventRepo:    userEventRepo,
 	}
 }
 
@@ -77,6 +94,7 @@ func (uc *GenerateRouteUC) Execute(
 	)
 
 	categories := normalizeCategories(requestedCategories, req.IncludeFood)
+	placeScoreAdjustments := uc.resolvePlaceScoreAdjustments(ctx, req.UserID)
 
 	searchResp, err := uc.searchPlacesUC.Execute(ctx, dto.SearchPlacesRequest{
 		Lat:        req.StartLat,
@@ -94,6 +112,7 @@ func (uc *GenerateRouteUC) Execute(
 		searchResp.Places,
 		requestedCategories,
 		preferenceWeights,
+		placeScoreAdjustments,
 		req.StartLat,
 		req.StartLon,
 		req.Radius,
@@ -151,6 +170,8 @@ func (uc *GenerateRouteUC) Execute(
 		return dto.GenerateRouteResponse{}, err
 	}
 
+	uc.trackGeneratedPlaces(ctx, req.UserID, finalPlaces)
+
 	return dto.GenerateRouteResponse{
 		Places: finalPlaces,
 		Route: dto.RouteResult{
@@ -173,6 +194,7 @@ func buildRecommendationCandidates(
 	places []dto.Place,
 	requestedCategories []string,
 	preferenceWeights map[string]float64,
+	placeScoreAdjustments map[string]float64,
 	startLat float64,
 	startLon float64,
 	radius int,
@@ -212,6 +234,14 @@ func buildRecommendationCandidates(
 		}
 
 		baseScore := computeBaseScore(place, preferenceWeights, startLat, startLon, radius, isFood)
+
+		if place.PlaceID != "" {
+			baseScore += placeScoreAdjustments[place.PlaceID]
+		}
+
+		if baseScore < minCandidateScore {
+			baseScore = minCandidateScore
+		}
 
 		result = append(result, recommendationCandidate{
 			Place:        place,
@@ -312,6 +342,151 @@ func maxFloat(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+type placeHistoryStats struct {
+	GeneratedCount int
+	ViewedCount    int
+	OpenedCount    int
+	SavedCount     int
+	CompletedCount int
+}
+
+func (uc *GenerateRouteUC) resolvePlaceScoreAdjustments(
+	ctx context.Context,
+	userID uuid.UUID,
+) map[string]float64 {
+	if uc.userEventRepo == nil || userID == uuid.Nil {
+		return map[string]float64{}
+	}
+
+	events, err := uc.userEventRepo.GetRecentByUserID(ctx, userID, recentUserEventsLimit)
+	if err != nil {
+		return map[string]float64{}
+	}
+
+	return buildPlaceScoreAdjustments(events)
+}
+
+func buildPlaceScoreAdjustments(events []entity.UserEvent) map[string]float64 {
+	statsByPlaceID := make(map[string]*placeHistoryStats)
+
+	for _, event := range events {
+		if event.PlaceID == nil {
+			continue
+		}
+
+		placeID := strings.TrimSpace(*event.PlaceID)
+		if placeID == "" {
+			continue
+		}
+
+		stats, exists := statsByPlaceID[placeID]
+		if !exists {
+			stats = &placeHistoryStats{}
+			statsByPlaceID[placeID] = stats
+		}
+
+		switch event.EventType {
+		case entity.UserEventRouteGenerated:
+			stats.GeneratedCount++
+		case entity.UserEventPlaceViewed:
+			stats.ViewedCount++
+		case entity.UserEventRouteOpened:
+			stats.OpenedCount++
+		case entity.UserEventRouteSaved:
+			stats.SavedCount++
+		case entity.UserEventRouteCompleted:
+			stats.CompletedCount++
+		}
+	}
+
+	adjustments := make(map[string]float64, len(statsByPlaceID))
+
+	for placeID, stats := range statsByPlaceID {
+		bonus := float64(stats.ViewedCount)*placeViewedBonus +
+			float64(stats.OpenedCount)*routeOpenedBonus +
+			float64(stats.SavedCount)*routeSavedBonus
+
+		if bonus > maxPlaceBonus {
+			bonus = maxPlaceBonus
+		}
+
+		penalty := float64(stats.GeneratedCount)*routeGeneratedPlacePenalty +
+			float64(stats.CompletedCount)*routeCompletedPlacePenalty
+
+		if penalty > maxPlacePenalty {
+			penalty = maxPlacePenalty
+		}
+
+		adjustments[placeID] = bonus - penalty
+	}
+
+	return adjustments
+}
+
+func (uc *GenerateRouteUC) trackGeneratedPlaces(
+	ctx context.Context,
+	userID uuid.UUID,
+	places []dto.Place,
+) {
+	if uc.userEventRepo == nil || userID == uuid.Nil {
+		return
+	}
+
+	now := time.Now().UTC()
+
+	for _, place := range places {
+		placeID := strings.TrimSpace(place.PlaceID)
+		if placeID == "" {
+			continue
+		}
+
+		category := eventCategoryFromPlace(place)
+		var categoryPtr *string
+		if category != "" {
+			categoryPtr = &category
+		}
+
+		placeIDCopy := placeID
+
+		_ = uc.userEventRepo.Create(ctx, &entity.UserEvent{
+			ID:        uuid.New(),
+			UserID:    userID,
+			EventType: entity.UserEventRouteGenerated,
+			RouteID:   nil,
+			PlaceID:   &placeIDCopy,
+			Category:  categoryPtr,
+			CreatedAt: now,
+		})
+	}
+}
+
+func eventCategoryFromPlace(place dto.Place) string {
+	if hasFoodCategory(place.Categories) {
+		return "catering.cafe"
+	}
+
+	for _, category := range place.Categories {
+		if hasCategoryPrefix(category, "tourism.sights") {
+			return "tourism.sights"
+		}
+		if hasCategoryPrefix(category, "leisure.park") {
+			return "leisure.park"
+		}
+		if hasCategoryPrefix(category, "entertainment.museum") {
+			return "entertainment.museum"
+		}
+	}
+
+	for _, category := range place.Categories {
+		category = strings.TrimSpace(category)
+		if category != "" {
+			return category
+		}
+	}
+
+	return ""
 }
 
 func buildPreferenceWeights(requestedCategories []string, includeFood bool) map[string]float64 {
