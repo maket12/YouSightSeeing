@@ -6,7 +6,10 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -49,6 +52,16 @@ public class RouteFinalActivity extends AppCompatActivity {
 
     private Button btnZoomInFinal;
     private Button btnZoomOutFinal;
+    private Button btnStartNavigation;
+    private TextView tvNavigationStatus;
+
+    private FusedLocationProviderClient fusedClient;
+    private NavigationController navigationController;
+
+    private List<Point> routePoints = new ArrayList<>();
+    private PlacemarkMapObject userMarker;
+    private PolylineMapObject passedRouteLine;
+    private PolylineMapObject remainingRouteLine;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -63,9 +76,13 @@ public class RouteFinalActivity extends AppCompatActivity {
         btnNewRoute = findViewById(R.id.btnNewRoute);
         btnZoomInFinal = findViewById(R.id.btnZoomInFinal);
         btnZoomOutFinal = findViewById(R.id.btnZoomOutFinal);
+        btnStartNavigation = findViewById(R.id.btnStartNavigation);
+        tvNavigationStatus = findViewById(R.id.tvNavigationStatus);
+
+        fusedClient = LocationServices.getFusedLocationProviderClient(this);
 
 
-        List<Point> routePoints = parseRoutePoints(
+        routePoints = parseRoutePoints(
                 getIntent().getStringExtra(EXTRA_ROUTE_POINTS_JSON)
         );
         List<RoutePlaceItem> places = parsePlaces(
@@ -79,6 +96,62 @@ public class RouteFinalActivity extends AppCompatActivity {
         renderPlaces(places);
         renderRoute(routePoints, places);
 
+        navigationController = new NavigationController(
+                this,
+                mapView,
+                fusedClient,
+                new NavigationController.NavigationListener() {
+                    @Override
+                    public void onUserLocationChanged(Point userPoint) {
+                        updateUserMarker(userPoint);
+                    }
+                    @Override
+                    public void onNavigationStarted() {
+                        tvNavigationStatus.setText("Навигация запущена");
+                        btnStartNavigation.setText("Завершить путь");
+                        if (routeLine != null && mapView != null && mapView.getMapWindow() != null) {
+                            mapView.getMapWindow().getMap().getMapObjects().remove(routeLine);
+                            routeLine = null;
+                        }
+                        updateRouteProgress(0);
+                    }
+
+                    @Override
+                    public void onNavigationStopped() {
+                        tvNavigationStatus.setText("Навигация остановлена");
+                        btnStartNavigation.setText("Начать путь");
+                    }
+
+                    @Override
+                    public void onProgressChanged(double remainingMeters, int nearestIndex, int totalPoints) {
+                        tvNavigationStatus.setText(
+                                String.format(
+                                        "Осталось %.1f км • прогресс %d/%d",
+                                        remainingMeters / 1000.0,
+                                        nearestIndex + 1,
+                                        totalPoints
+                                )
+                        );
+
+                        updateRouteProgress(nearestIndex);
+                    }
+
+                    @Override
+                    public void onRouteFinished() {
+                        tvNavigationStatus.setText("Маршрут завершён");
+                        btnStartNavigation.setText("Начать путь");
+                        Toast.makeText(RouteFinalActivity.this, "Маршрут завершён", Toast.LENGTH_LONG).show();
+                    }
+
+                    @Override
+                    public void onUserOffRoute(double distanceFromRouteMeters) {
+                        tvNavigationStatus.setText(
+                                String.format("Вы отклонились от маршрута на %.0f м", distanceFromRouteMeters)
+                        );
+                    }
+                }
+        );
+
         btnNewRoute.setOnClickListener(v -> {
             Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -89,6 +162,56 @@ public class RouteFinalActivity extends AppCompatActivity {
 
         btnZoomInFinal.setOnClickListener(v -> zoomIn());
         btnZoomOutFinal.setOnClickListener(v -> zoomOut());
+        btnStartNavigation.setOnClickListener(v -> {
+            if (navigationController == null) return;
+
+            if (navigationController.isNavigating()) {
+                navigationController.stopNavigation();
+            } else {
+                navigationController.startNavigation(routePoints);
+            }
+        });
+    }
+
+    private void updateRouteProgress(int nearestIndex) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+        if (routePoints == null || routePoints.size() < 2) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+
+        List<Point> passed = new ArrayList<>();
+        for (int i = 0; i <= nearestIndex && i < routePoints.size(); i++) {
+            passed.add(routePoints.get(i));
+        }
+
+        List<Point> remaining = new ArrayList<>();
+        for (int i = nearestIndex; i < routePoints.size(); i++) {
+            remaining.add(routePoints.get(i));
+        }
+
+        if (passed.size() >= 2) {
+            Polyline passedPolyline = new Polyline(passed);
+
+            if (passedRouteLine == null) {
+                passedRouteLine = mapObjects.addPolyline(passedPolyline);
+                passedRouteLine.setStrokeWidth(4f);
+                passedRouteLine.setStrokeColor(0xFF9E9E9E);
+            } else {
+                passedRouteLine.setGeometry(passedPolyline);
+            }
+        }
+
+        if (remaining.size() >= 2) {
+            Polyline remainingPolyline = new Polyline(remaining);
+
+            if (remainingRouteLine == null) {
+                remainingRouteLine = mapObjects.addPolyline(remainingPolyline);
+                remainingRouteLine.setStrokeWidth(5f);
+                remainingRouteLine.setStrokeColor(0xFF0097A7);
+            } else {
+                remainingRouteLine.setGeometry(remainingPolyline);
+            }
+        }
     }
 
     private void zoomIn() {
@@ -269,6 +392,20 @@ public class RouteFinalActivity extends AppCompatActivity {
         return result;
     }
 
+    private void updateUserMarker(Point userPoint) {
+        if (mapView == null || mapView.getMapWindow() == null) return;
+
+        MapObjectCollection mapObjects = mapView.getMapWindow().getMap().getMapObjects();
+
+        if (userMarker == null) {
+            userMarker = mapObjects.addPlacemark(userPoint);
+            userMarker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            userMarker.setZIndex(100f);
+        } else {
+            userMarker.setGeometry(userPoint);
+        }
+    }
+
     @Override
     protected void onStart() {
         super.onStart();
@@ -278,6 +415,10 @@ public class RouteFinalActivity extends AppCompatActivity {
 
     @Override
     protected void onStop() {
+        if (navigationController != null) {
+            navigationController.stopNavigation();
+        }
+
         if (mapView != null) mapView.onStop();
         MapKitFactory.getInstance().onStop();
         super.onStop();

@@ -80,8 +80,18 @@ public class RouteConfirmationActivity extends AppCompatActivity {
         btnEditRoute.setOnClickListener(v -> finish());
 
         btnConfirmRoute.setOnClickListener(v -> {
-            setResult(RESULT_OK);
-            finish();
+            Intent intent = new Intent(this, RouteFinalActivity.class);
+
+            intent.putExtra(EXTRA_ROUTE_POINTS_JSON,
+                    getIntent().getStringExtra(EXTRA_ROUTE_POINTS_JSON));
+            intent.putExtra(EXTRA_PLACES_JSON,
+                    getIntent().getStringExtra(EXTRA_PLACES_JSON));
+            intent.putExtra(EXTRA_DISTANCE,
+                    getIntent().getDoubleExtra(EXTRA_DISTANCE, 0.0));
+            intent.putExtra(EXTRA_DURATION,
+                    getIntent().getDoubleExtra(EXTRA_DURATION, 0.0));
+
+            startActivity(intent);
         });
 
         btnZoomInConfirm.setOnClickListener(v -> zoomIn());
