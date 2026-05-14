@@ -148,6 +148,8 @@ func TestUH_GetMe(t *testing.T) {
 				mockGetUserUC,
 				mockUpdateUserUC,
 				mockUpdateUserPictureUC,
+				nil,
+				nil,
 			)
 
 			c, rec := createUserTestContext(
@@ -337,6 +339,8 @@ func TestUH_UpdateMe(t *testing.T) {
 				mockGetUserUC,
 				mockUpdateUserUC,
 				mockUpdateUserPictureUC,
+				nil,
+				nil,
 			)
 
 			c, rec := createUserTestContext(
@@ -509,6 +513,8 @@ func TestUH_UpdateMePicture(t *testing.T) {
 				mockGetUserUC,
 				mockUpdateUserUC,
 				mockUpdateUserPictureUC,
+				nil,
+				nil,
 			)
 
 			c, rec := createUserTestContext(
