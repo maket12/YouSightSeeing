@@ -96,6 +96,8 @@ func main() {
 	getUserUC := usecase.NewGetUserUC(usersRepo)
 	updateUserUC := usecase.NewUpdateUserUC(usersRepo)
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
+	getUserPreferencesUC := usecase.NewGetUserPreferencesUC(userPreferencesRepo)
+	updateUserPreferencesUC := usecase.NewUpdateUserPreferencesUC(userPreferencesRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 	searchPlacesUC := usecase.NewSearchPlacesUC(placesService)
 	generateRouteUC := usecase.NewGenerateRouteUC(
@@ -119,8 +121,12 @@ func main() {
 		refreshTokenUC, logoutUC,
 	)
 	userHandler := adapterhttp.NewUserHandler(
-		logger, getUserUC,
-		updateUserUC, updateUserPicUC,
+		logger,
+		getUserUC,
+		updateUserUC,
+		updateUserPicUC,
+		getUserPreferencesUC,
+		updateUserPreferencesUC,
 	)
 	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)

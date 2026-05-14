@@ -5,6 +5,8 @@ import (
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type GetUserPreferencesUC struct {
@@ -21,7 +23,7 @@ func (uc *GetUserPreferencesUC) Execute(
 	ctx context.Context,
 	req dto.GetUserPreferencesRequest,
 ) (dto.GetUserPreferencesResponse, error) {
-	if req.UserID.String() == "" {
+	if req.UserID == uuid.Nil {
 		return dto.GetUserPreferencesResponse{}, uc_errors.InvalidUserID
 	}
 

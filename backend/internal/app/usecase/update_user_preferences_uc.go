@@ -26,7 +26,7 @@ func (uc *UpdateUserPreferencesUC) Execute(
 	ctx context.Context,
 	req dto.UpdateUserPreferencesRequest,
 ) (dto.UpdateUserPreferencesResponse, error) {
-	if req.UserID.String() == "" {
+	if req.UserID == uuid.Nil {
 		return dto.UpdateUserPreferencesResponse{}, uc_errors.InvalidUserID
 	}
 

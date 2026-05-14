@@ -50,6 +50,8 @@ func (r *Router) InitRoutes() *echo.Echo {
 		{
 			debugGroup.POST("/events", r.event.TrackEvent)
 			debugGroup.POST("/routes/generate", r.route.GenerateRoute)
+			debugGroup.GET("/users/preferences", r.user.GetPreferences)
+			debugGroup.PATCH("/users/preferences", r.user.UpdatePreferences)
 		}
 	}
 
@@ -61,6 +63,8 @@ func (r *Router) InitRoutes() *echo.Echo {
 			users.GET("/me", r.user.GetMe)
 			users.PATCH("/me", r.user.UpdateMe)
 			users.PUT("/me/picture", r.user.UpdateMePicture)
+			users.GET("/preferences", r.user.GetPreferences)
+			users.PATCH("/preferences", r.user.UpdatePreferences)
 		}
 		routesGroup := privateApi.Group("/routes")
 		{
