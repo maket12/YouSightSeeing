@@ -63,7 +63,18 @@ func (h *RouteHandler) GenerateRoute(c echo.Context) error {
 		})
 	}
 
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid test user id",
+		})
+	}
+	if ok {
+		req.UserID = userID
+	}
+
 	resp, err := h.generateRouteUC.Execute(c.Request().Context(), req)
+  
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
 		h.log.ErrorContext(c.Request().Context(), "failed to generate route",

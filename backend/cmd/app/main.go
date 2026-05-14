@@ -66,6 +66,8 @@ func main() {
 	// ======================
 	usersRepo := adapterdb.NewUserRepository(db)
 	rTokensRepo := adapterdb.NewRefreshTokensRepository(db)
+	userPreferencesRepo := adapterdb.NewUserCategoryPreferencesRepository(db)
+	userEventRepo := adapterdb.NewUserEventRepository(db)
 	googleVerfRepo := adaptergv.NewOAuthVerifier(cfg.GoogleClientID)
 	tokensGeneratorRepo := adaptertg.NewTokensGenerator(
 		cfg.AccessSecret,
@@ -74,6 +76,7 @@ func main() {
 		cfg.RefreshDuration,
 	)
 	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
+	routeMatrixCalculator := adapterors.NewRouteMatrixCalculator(cfg.ORSApiKey)
 	placesService := adaptergeo.NewPlacesService(cfg.GeopifyAPIKey)
 	routeRepo := adapterdb.NewRouteRepository(db)
 
@@ -94,8 +97,22 @@ func main() {
 	getUserUC := usecase.NewGetUserUC(usersRepo)
 	updateUserUC := usecase.NewUpdateUserUC(usersRepo)
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
+	getUserPreferencesUC := usecase.NewGetUserPreferencesUC(userPreferencesRepo)
+	updateUserPreferencesUC := usecase.NewUpdateUserPreferencesUC(userPreferencesRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 	searchPlacesUC := usecase.NewSearchPlacesUC(placesService)
+	generateRouteUC := usecase.NewGenerateRouteUC(
+		searchPlacesUC,
+		calculateRouteUC,
+		routeMatrixCalculator,
+		userPreferencesRepo,
+		userEventRepo,
+	)
+	updatePreferenceWeightsUC := usecase.NewUpdatePreferenceWeightsUC(userPreferencesRepo)
+	trackUserEventUC := usecase.NewTrackUserEventUCWithPreferenceUpdater(
+		userEventRepo,
+		updatePreferenceWeightsUC,
+	)
 	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC)
 	saveRouteUC := usecase.NewSaveRouteUC(routeRepo)
 
@@ -107,11 +124,16 @@ func main() {
 		refreshTokenUC, logoutUC,
 	)
 	userHandler := adapterhttp.NewUserHandler(
-		logger, getUserUC,
-		updateUserUC, updateUserPicUC,
+		logger,
+		getUserUC,
+		updateUserUC,
+		updateUserPicUC,
+		getUserPreferencesUC,
+		updateUserPreferencesUC,
 	)
 	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC, saveRouteUC)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
+	eventHandler := adapterhttp.NewEventHandler(logger, trackUserEventUC)
 
 	// ======================
 	// 7. Router
@@ -122,6 +144,7 @@ func main() {
 		userHandler,
 		routeHandler,
 		placesHandler,
+		eventHandler,
 	).InitRoutes()
 
 	// ======================

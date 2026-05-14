@@ -41,6 +41,20 @@ type GenerateRouteUseCase interface {
 	Execute(ctx context.Context, req dto.GenerateRouteRequest) (dto.GenerateRouteResponse, error)
 }
 
+type GetUserPreferencesUseCase interface {
+	Execute(ctx context.Context, req dto.GetUserPreferencesRequest) (dto.GetUserPreferencesResponse, error)
+}
+
+type UpdateUserPreferencesUseCase interface {
+	Execute(ctx context.Context, req dto.UpdateUserPreferencesRequest) (dto.UpdateUserPreferencesResponse, error)
+}
+
+type TrackUserEventUseCase interface {
+	Execute(ctx context.Context, req dto.TrackUserEventRequest) (dto.TrackUserEventResponse, error)
+}
+
+type UpdatePreferenceWeightsUseCase interface {
+	Execute(ctx context.Context, req dto.UpdatePreferenceWeightsRequest) (dto.UpdatePreferenceWeightsResponse, error)
 type SaveRouteUseCase interface {
 	Execute(ctx context.Context, req dto.SaveRouteRequest) error
 }

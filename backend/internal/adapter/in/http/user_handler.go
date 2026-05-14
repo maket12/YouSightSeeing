@@ -10,22 +10,29 @@ import (
 )
 
 type UserHandler struct {
-	log                 *slog.Logger
-	getUserUC           usecase.GetUserUseCase
-	updateUserUC        usecase.UpdateUserUseCase
-	updateUserPictureUC usecase.UpdateUserPictureUseCase
+	log                     *slog.Logger
+	getUserUC               usecase.GetUserUseCase
+	updateUserUC            usecase.UpdateUserUseCase
+	updateUserPictureUC     usecase.UpdateUserPictureUseCase
+	getUserPreferencesUC    usecase.GetUserPreferencesUseCase
+	updateUserPreferencesUC usecase.UpdateUserPreferencesUseCase
 }
 
 func NewUserHandler(
 	log *slog.Logger,
 	getUserUc usecase.GetUserUseCase,
 	updateUserUc usecase.UpdateUserUseCase,
-	updateUserPictureUc usecase.UpdateUserPictureUseCase) *UserHandler {
+	updateUserPictureUc usecase.UpdateUserPictureUseCase,
+	getUserPreferencesUc usecase.GetUserPreferencesUseCase,
+	updateUserPreferencesUc usecase.UpdateUserPreferencesUseCase,
+) *UserHandler {
 	return &UserHandler{
-		log:                 log,
-		getUserUC:           getUserUc,
-		updateUserUC:        updateUserUc,
-		updateUserPictureUC: updateUserPictureUc,
+		log:                     log,
+		getUserUC:               getUserUc,
+		updateUserUC:            updateUserUc,
+		updateUserPictureUC:     updateUserPictureUc,
+		getUserPreferencesUC:    getUserPreferencesUc,
+		updateUserPreferencesUC: updateUserPreferencesUc,
 	}
 }
 
@@ -114,6 +121,74 @@ func (h *UserHandler) UpdateMePicture(c echo.Context) error {
 
 	h.log.InfoContext(c.Request().Context(), "successfully updated user's picture",
 		slog.String("user_id", resp.ID.String()))
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (h *UserHandler) GetPreferences(c echo.Context) error {
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid test user id",
+		})
+	}
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Authorization header required",
+		})
+	}
+
+	resp, err := h.getUserPreferencesUC.Execute(
+		c.Request().Context(),
+		dto.GetUserPreferencesRequest{
+			UserID: userID,
+		},
+	)
+	if err != nil {
+		status, msg, internalErr := HttpError(err)
+		h.log.ErrorContext(c.Request().Context(), "failed to get user preferences",
+			slog.Int("status", status),
+			slog.String("public_msg", msg),
+			slog.Any("cause", internalErr),
+		)
+		return c.JSON(status, map[string]string{"error": msg})
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (h *UserHandler) UpdatePreferences(c echo.Context) error {
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid test user id",
+		})
+	}
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Authorization header required",
+		})
+	}
+
+	var req dto.UpdateUserPreferencesRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid json",
+		})
+	}
+
+	req.UserID = userID
+
+	resp, err := h.updateUserPreferencesUC.Execute(c.Request().Context(), req)
+	if err != nil {
+		status, msg, internalErr := HttpError(err)
+		h.log.ErrorContext(c.Request().Context(), "failed to update user preferences",
+			slog.Int("status", status),
+			slog.String("public_msg", msg),
+			slog.Any("cause", internalErr),
+		)
+		return c.JSON(status, map[string]string{"error": msg})
+	}
 
 	return c.JSON(http.StatusOK, resp)
 }

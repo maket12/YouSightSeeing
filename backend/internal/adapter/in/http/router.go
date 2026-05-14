@@ -17,15 +17,17 @@ type Router struct {
 	user   *UserHandler
 	route  *RouteHandler
 	place  *PlacesHandler
+	event  *EventHandler
 }
 
-func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler, places *PlacesHandler) *Router {
+func NewRouter(jwtGen port.TokensGenerator, auth *AuthHandler, users *UserHandler, route *RouteHandler, places *PlacesHandler, event *EventHandler) *Router {
 	return &Router{
 		jwtgen: jwtGen,
 		auth:   auth,
 		user:   users,
 		route:  route,
 		place:  places,
+		event:  event,
 	}
 }
 
@@ -43,6 +45,14 @@ func (r *Router) InitRoutes() *echo.Echo {
 			authGroup.POST("/refresh", r.auth.RefreshToken)
 			authGroup.POST("/logout", r.auth.Logout)
 		}
+
+		debugGroup := publicApi.Group("/debug")
+		{
+			debugGroup.POST("/events", r.event.TrackEvent)
+			debugGroup.POST("/routes/generate", r.route.GenerateRoute)
+			debugGroup.GET("/users/preferences", r.user.GetPreferences)
+			debugGroup.PATCH("/users/preferences", r.user.UpdatePreferences)
+		}
 	}
 
 	privateApi := router.Group("/api")
@@ -53,16 +63,21 @@ func (r *Router) InitRoutes() *echo.Echo {
 			users.GET("/me", r.user.GetMe)
 			users.PATCH("/me", r.user.UpdateMe)
 			users.PUT("/me/picture", r.user.UpdateMePicture)
+			users.GET("/preferences", r.user.GetPreferences)
+			users.PATCH("/preferences", r.user.UpdatePreferences)
 		}
 		routesGroup := privateApi.Group("/routes")
 		{
 			routesGroup.POST("/calculate", r.route.CalculateRoute)
 			routesGroup.POST("/generate", r.route.GenerateRoute)
-
 		}
 		placesGroup := privateApi.Group("/places")
 		{
 			placesGroup.POST("/search", r.place.Search)
+		}
+		eventsGroup := privateApi.Group("/events")
+		{
+			eventsGroup.POST("", r.event.TrackEvent)
 		}
 	}
 

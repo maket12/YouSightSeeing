@@ -114,6 +114,7 @@ func TestRH_CalculateRoute(t *testing.T) {
 			handler := adapterhttp.NewRouteHandler(
 				logger,
 				mockCalculateRouteUC,
+				nil,
 			)
 
 			c, rec := createRouteTestContext(

@@ -33,9 +33,14 @@ var (
 	GenerateRefreshTokenError = errors.New("failed to generate new refresh token")
 
 	ErrRouteCalculationFailed = errors.New("failed to calculate route")
+	ErrRouteMatrixFailed      = errors.New("failed to calculate route matrix")
 	ErrInvalidRoutePoints     = errors.New("need at least 2 points to calculate a route")
 
 	ErrSearchPlacesFailed  = errors.New("failed to search places")
 	ErrInvalidSearchRadius = errors.New("search radius must be positive")
 	ErrInvalidCoordinates  = errors.New("invalid coordinates")
+
+	ErrEmptyPreferenceCategory = errors.New("preference category is required")
+	ErrInvalidPreferenceWeight = errors.New("preference weight must be between 0 and 1")
+	ErrInvalidUserEventType    = errors.New("invalid user event type")
 )

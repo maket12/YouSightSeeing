@@ -38,7 +38,7 @@ func NewPlacesService(apiKey string) *PlacesService {
 	return &PlacesService{
 		APIKey:     apiKey,
 		BaseURL:    "https://api.geoapify.com/v2/places",
-		HTTPClient: &http.Client{Timeout: 10 * time.Second},
+		HTTPClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
