@@ -20,7 +20,7 @@ func NewCalculateRouteUC(service port.RouteCalculator) *CalculateRouteUC {
 }
 
 func (uc *CalculateRouteUC) Execute(ctx context.Context, req dto.CalculateRouteRequest) (dto.CalculateRouteResponse, error) {
-	//validation
+	// Validation
 	if len(req.Coordinates) < 2 {
 		return dto.CalculateRouteResponse{}, uc_errors.ErrInvalidRoutePoints
 	}

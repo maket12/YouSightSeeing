@@ -78,6 +78,7 @@ func main() {
 	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
 	routeMatrixCalculator := adapterors.NewRouteMatrixCalculator(cfg.ORSApiKey)
 	placesService := adaptergeo.NewPlacesService(cfg.GeopifyAPIKey)
+	routeRepo := adapterdb.NewRouteRepository(db)
 
 	// ======================
 	// 5. Usecases
@@ -112,6 +113,8 @@ func main() {
 		userEventRepo,
 		updatePreferenceWeightsUC,
 	)
+	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC)
+	saveRouteUC := usecase.NewSaveRouteUC(routeRepo)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -128,7 +131,7 @@ func main() {
 		getUserPreferencesUC,
 		updateUserPreferencesUC,
 	)
-	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC)
+	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC, saveRouteUC)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
 	eventHandler := adapterhttp.NewEventHandler(logger, trackUserEventUC)
 
