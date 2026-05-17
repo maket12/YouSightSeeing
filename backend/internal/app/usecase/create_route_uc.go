@@ -29,7 +29,7 @@ func NewCreateRouteUC(
 	}
 }
 
-func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest) (uuid.UUID, error) {
+func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest) (dto.CreateRouteResponse, error) {
 	route, routePoints := mappers.MapCreateRouteToEntities(req)
 
 	err := uc.trManager.Do(ctx, func(txCtx context.Context) error {
@@ -49,8 +49,8 @@ func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest
 	})
 
 	if err != nil {
-		return uuid.Nil, err
+		return dto.CreateRouteResponse{RouteID: uuid.Nil}, err
 	}
 
-	return route.ID, nil
+	return dto.CreateRouteResponse{RouteID: route.ID}, nil
 }

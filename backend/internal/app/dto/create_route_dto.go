@@ -28,3 +28,7 @@ type CreateRouteRequest struct {
 	ShareCode      *string             `json:"share_code"`
 	Points         []RoutePointRequest `json:"points"`
 }
+
+type CreateRouteResponse struct {
+	RouteID uuid.UUID `json:"route_id"`
+}
