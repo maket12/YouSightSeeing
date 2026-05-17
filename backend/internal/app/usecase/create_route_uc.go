@@ -8,18 +8,23 @@ import (
 	"context"
 	"time"
 
+	"github.com/avito-tech/go-transaction-manager/trm/v2"
 	"github.com/google/uuid"
 )
 
-type SaveRouteUC struct {
-	route port.RouteRepository
+type CreateRouteUC struct {
+	trManager trm.Manager
+	route     port.RouteRepository
 }
 
-func NewSaveRouteUC(route port.RouteRepository) *SaveRouteUC {
-	return &SaveRouteUC{route: route}
+func NewCreateRouteUC(trManager trm.Manager, route port.RouteRepository) *CreateRouteUC {
+	return &CreateRouteUC{
+		trManager: trManager,
+		route:     route,
+	}
 }
 
-func (uc *SaveRouteUC) Execute(ctx context.Context, req dto.SaveRouteRequest) error {
+func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest) error {
 	route := &entity.Route{
 		ID:             uuid.New(),
 		UserID:         req.UserID,

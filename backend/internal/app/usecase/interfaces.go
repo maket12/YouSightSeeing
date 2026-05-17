@@ -56,5 +56,5 @@ type TrackUserEventUseCase interface {
 type UpdatePreferenceWeightsUseCase interface {
 	Execute(ctx context.Context, req dto.UpdatePreferenceWeightsRequest) (dto.UpdatePreferenceWeightsResponse, error)
 type SaveRouteUseCase interface {
-	Execute(ctx context.Context, req dto.SaveRouteRequest) error
+	Execute(ctx context.Context, req dto.CreateRouteRequest) error
 }

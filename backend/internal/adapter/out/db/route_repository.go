@@ -16,9 +16,7 @@ type RouteRepository struct {
 }
 
 func NewRouteRepository(db *sqlx.DB) *RouteRepository {
-	return &RouteRepository{
-		db: db,
-	}
+	return &RouteRepository{db: db}
 }
 
 func (r *RouteRepository) Create(ctx context.Context, route *entity.Route) error {

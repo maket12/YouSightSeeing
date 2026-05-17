@@ -8,23 +8,18 @@ import (
 )
 
 type Route struct {
-	ID     uuid.UUID `db:"id"`
-	UserID uuid.UUID `db:"user_id"`
-	Title  string    `db:"title"`
-
-	StartLatitude  float64 `db:"start_latitude"`
-	StartLongitude float64 `db:"start_longitude"`
-
-	Distance int64 `db:"distance"`
-	Duration int   `db:"duration"` // in seconds
-
-	Categories  pq.StringArray `db:"categories"`
-	MaxPlaces   int            `db:"max_places"`
-	IncludeFood bool           `db:"include_food"`
-
-	IsPublic  bool    `db:"is_public"`
-	ShareCode *string `db:"share_code"`
-
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID             uuid.UUID      `db:"id"`
+	UserID         uuid.UUID      `db:"user_id"`
+	Title          string         `db:"title"`
+	StartLatitude  float64        `db:"start_latitude"`
+	StartLongitude float64        `db:"start_longitude"`
+	Distance       int64          `db:"distance"`
+	Duration       int            `db:"duration"` // in seconds
+	Categories     pq.StringArray `db:"categories"`
+	MaxPlaces      int            `db:"max_places"`
+	IncludeFood    bool           `db:"include_food"`
+	IsPublic       bool           `db:"is_public"`
+	ShareCode      *string        `db:"share_code"`
+	CreatedAt      time.Time      `db:"created_at"`
+	UpdatedAt      time.Time      `db:"updated_at"`
 }

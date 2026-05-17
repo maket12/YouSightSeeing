@@ -74,7 +74,7 @@ func (h *RouteHandler) GenerateRoute(c echo.Context) error {
 	}
 
 	resp, err := h.generateRouteUC.Execute(c.Request().Context(), req)
-  
+
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
 		h.log.ErrorContext(c.Request().Context(), "failed to generate route",
@@ -89,7 +89,7 @@ func (h *RouteHandler) GenerateRoute(c echo.Context) error {
 }
 
 func (h *RouteHandler) SaveRoute(c echo.Context) error {
-	var req dto.SaveRouteRequest
+	var req dto.CreateRouteRequest
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
