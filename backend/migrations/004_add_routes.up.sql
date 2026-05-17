@@ -20,5 +20,17 @@ CREATE TABLE IF NOT EXISTS routes (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS route_points (
+    id UUID PRIMARY KEY,
+    route_id UUID NOT NULL REFERENCES routes(id) ON DELETE CASCADE,
+    position INT NOT NULL,
+    place_id TEXT,
+    name TEXT NOT NULL,
+    address TEXT,
+    categories TEXT[] NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL
+);
+
 CREATE INDEX idx_routes_user_id ON routes(user_id);
 CREATE INDEX idx_routes_categories ON routes USING GIN (categories);
