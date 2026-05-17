@@ -2,49 +2,55 @@ package usecase
 
 import (
 	"YouSightSeeing/backend/internal/app/dto"
+	"YouSightSeeing/backend/internal/app/mappers"
 	"YouSightSeeing/backend/internal/app/uc_errors"
-	"YouSightSeeing/backend/internal/domain/entity"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
-	"time"
 
 	"github.com/avito-tech/go-transaction-manager/trm/v2"
 	"github.com/google/uuid"
 )
 
 type CreateRouteUC struct {
-	trManager trm.Manager
-	route     port.RouteRepository
+	trManager  trm.Manager
+	route      port.RouteRepository
+	routePoint port.RoutePointRepository
 }
 
-func NewCreateRouteUC(trManager trm.Manager, route port.RouteRepository) *CreateRouteUC {
+func NewCreateRouteUC(
+	trManager trm.Manager,
+	route port.RouteRepository,
+	routePoint port.RoutePointRepository,
+) *CreateRouteUC {
 	return &CreateRouteUC{
-		trManager: trManager,
-		route:     route,
+		trManager:  trManager,
+		route:      route,
+		routePoint: routePoint,
 	}
 }
 
-func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest) error {
-	route := &entity.Route{
-		ID:             uuid.New(),
-		UserID:         req.UserID,
-		Title:          req.Title,
-		StartLatitude:  req.StartLatitude,
-		StartLongitude: req.StartLongitude,
-		Distance:       req.Distance,
-		Duration:       req.Duration,
-		Categories:     req.Categories,
-		MaxPlaces:      req.MaxPlaces,
-		IncludeFood:    req.IncludeFood,
-		IsPublic:       req.IsPublic,
-		ShareCode:      req.ShareCode,
-		CreatedAt:      time.Now().UTC(),
-		UpdatedAt:      time.Time{}.UTC(),
+func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest) (uuid.UUID, error) {
+	route, routePoints := mappers.MapCreateRouteToEntities(req)
+
+	err := uc.trManager.Do(ctx, func(txCtx context.Context) error {
+		createErr := uc.route.Create(txCtx, route)
+		if createErr != nil {
+			return uc_errors.Wrap(uc_errors.CreateRouteError, createErr)
+		}
+
+		for _, routePoint := range routePoints {
+			createErr = uc.routePoint.Create(txCtx, routePoint)
+			if createErr != nil {
+				return uc_errors.Wrap(uc_errors.CreateRoutePointError, createErr)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return uuid.Nil, err
 	}
 
-	if err := uc.route.Create(ctx, route); err != nil {
-		return uc_errors.Wrap(uc_errors.CreateRouteError, err)
-	}
-
-	return nil
+	return route.ID, nil
 }
