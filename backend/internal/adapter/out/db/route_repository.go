@@ -16,12 +16,9 @@ type RouteRepository struct {
 }
 
 func NewRouteRepository(db *sqlx.DB) *RouteRepository {
-	return &RouteRepository{
-		db: db,
-	}
+	return &RouteRepository{db: db}
 }
 
-// Create — Создание нового маршрута
 func (r *RouteRepository) Create(ctx context.Context, route *entity.Route) error {
 	query := `INSERT INTO routes (
                  id, user_id, title, start_latitude, start_longitude, 
@@ -40,7 +37,6 @@ func (r *RouteRepository) Create(ctx context.Context, route *entity.Route) error
 	return nil
 }
 
-// Get — Получение одного маршрута по ID
 func (r *RouteRepository) Get(ctx context.Context, id uuid.UUID) (*entity.Route, error) {
 	query := `SELECT * FROM routes WHERE id = $1`
 
@@ -55,7 +51,6 @@ func (r *RouteRepository) Get(ctx context.Context, id uuid.UUID) (*entity.Route,
 	return &route, nil
 }
 
-// Update — Обновление данных маршрута
 func (r *RouteRepository) Update(ctx context.Context, route *entity.Route) error {
 	query := `UPDATE routes
             SET
@@ -81,7 +76,6 @@ func (r *RouteRepository) Update(ctx context.Context, route *entity.Route) error
 	return nil
 }
 
-// Delete — Удаление маршрута
 func (r *RouteRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM routes WHERE id = $1`
 
@@ -101,7 +95,6 @@ func (r *RouteRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// GetListByUserID — Получение списка маршрутов конкретного пользователя (L в CRUDL)
 func (r *RouteRepository) GetListByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Route, error) {
 	query := `SELECT * FROM routes 
             WHERE user_id = $1 
@@ -116,7 +109,6 @@ func (r *RouteRepository) GetListByUserID(ctx context.Context, userID uuid.UUID,
 	return routes, nil
 }
 
-// GetByShareCode — Дополнительный метод для публичных ссылок
 func (r *RouteRepository) GetByShareCode(ctx context.Context, code string) (*entity.Route, error) {
 	query := `SELECT * FROM routes WHERE share_code = $1 AND is_public = TRUE`
 

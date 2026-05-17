@@ -114,7 +114,7 @@ func main() {
 		updatePreferenceWeightsUC,
 	)
 	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC)
-	saveRouteUC := usecase.NewSaveRouteUC(routeRepo)
+	saveRouteUC := usecase.NewCreateRouteUC(routeRepo)
 
 	// ======================
 	// 6. Handlers (REST)

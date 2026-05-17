@@ -6,6 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
+type GetUserRequest struct {
+	ID uuid.UUID `json:"id"`
+}
+
 type UserResponse struct {
 	ID            uuid.UUID  `json:"id"`
 	GoogleSub     string     `json:"google_sub"`
@@ -19,4 +23,8 @@ type UserResponse struct {
 	Locale        *string    `json:"locale,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     *time.Time `json:"updated_at"`
+}
+
+type GetUserResponse struct {
+	User UserResponse `json:"user"`
 }

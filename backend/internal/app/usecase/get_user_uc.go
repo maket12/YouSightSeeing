@@ -13,12 +13,12 @@ import (
 )
 
 type GetUserUC struct {
-	Users port.UserRepository
+	user port.UserRepository
 }
 
 func NewGetUserUC(users port.UserRepository) *GetUserUC {
 	return &GetUserUC{
-		Users: users,
+		user: users,
 	}
 }
 
@@ -35,7 +35,7 @@ func (uc *GetUserUC) Execute(ctx context.Context, in dto.GetUserRequest) (dto.Ge
 	   #	 Request      #
 	   ####################
 	*/
-	user, err := uc.Users.GetByID(ctx, in.ID)
+	user, err := uc.user.GetByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return dto.GetUserResponse{}, uc_errors.UserNotFoundError
