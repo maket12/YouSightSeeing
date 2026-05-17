@@ -10,3 +10,9 @@ type UpdateUserRequest struct {
 	FirstName *string   `json:"first_name"`
 	LastName  *string   `json:"last_name"`
 }
+
+type UpdateUserResponse struct {
+	ID      uuid.UUID    `json:"id"`
+	Updated bool         `json:"updated"`
+	User    UserResponse `json:"user"`
+}

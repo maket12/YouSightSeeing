@@ -4,6 +4,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type RoutePointRequest struct {
+	Position   int
+	PlaceID    *string
+	Name       string
+	Address    string
+	Categories []string
+	Latitude   float64
+	Longitude  float64
+}
+
 type SaveRouteRequest struct {
 	UserID uuid.UUID
 	Title  string
@@ -20,4 +30,6 @@ type SaveRouteRequest struct {
 
 	IsPublic  bool
 	ShareCode *string
+
+	Points []RoutePointRequest
 }

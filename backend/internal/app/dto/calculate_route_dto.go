@@ -11,3 +11,9 @@ type CalculateRouteRequest struct {
 	Preference    string      `json:"preference,omitempty"`
 	OptimizeOrder bool        `json:"optimize_order,omitempty"`
 }
+
+type CalculateRouteResponse struct {
+	Points   [][]float64 `json:"points"`
+	Distance float64     `json:"distance"`
+	Duration float64     `json:"duration"`
+}
