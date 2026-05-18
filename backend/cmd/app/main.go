@@ -116,7 +116,12 @@ func main() {
 		userEventRepo,
 		updatePreferenceWeightsUC,
 	)
-	createRouteUC := usecase.NewCreateRouteUC(txManager, routeRepo, routePointRepo)
+	createRouteUC := usecase.NewCreateRouteUC(
+		txManager,
+		routeRepo,
+		routePointRepo,
+		trackUserEventUC,
+	)
 	getRouteUC := usecase.NewGetRouteUC(routeRepo, routePointRepo)
 	getRouteListUC := usecase.NewGetRouteListUC(routeRepo, routePointRepo)
 

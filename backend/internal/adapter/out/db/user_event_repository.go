@@ -28,7 +28,7 @@ func (r *UserEventRepository) Create(ctx context.Context, event *entity.UserEven
 		)
 	`
 
-	if _, err := r.db.NamedExecContext(ctx, query, event); err != nil {
+	if _, err := sqlx.NamedExecContext(ctx, executor(ctx, r.db), query, event); err != nil {
 		return fmt.Errorf("failed to create user event using db: %w", err)
 	}
 
@@ -50,7 +50,7 @@ func (r *UserEventRepository) GetByUserID(
 	`
 
 	var events []entity.UserEvent
-	if err := r.db.SelectContext(ctx, &events, query, userID, limit, offset); err != nil {
+	if err := sqlx.SelectContext(ctx, executor(ctx, r.db), &events, query, userID, limit, offset); err != nil {
 		return nil, fmt.Errorf("failed to get user events using db: %w", err)
 	}
 
@@ -71,7 +71,7 @@ func (r *UserEventRepository) GetRecentByUserID(
 	`
 
 	var events []entity.UserEvent
-	if err := r.db.SelectContext(ctx, &events, query, userID, limit); err != nil {
+	if err := sqlx.SelectContext(ctx, executor(ctx, r.db), &events, query, userID, limit); err != nil {
 		return nil, fmt.Errorf("failed to get recent user events using db: %w", err)
 	}
 
