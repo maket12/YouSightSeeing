@@ -1,8 +1,11 @@
 package dto
 
+import "github.com/google/uuid"
+
 type GetRouteListRequest struct {
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
+	UserID uuid.UUID `json:"-"`
+	Limit  int       `json:"limit"`
+	Offset int       `json:"offset"`
 }
 
 type GetRouteListResponse struct {

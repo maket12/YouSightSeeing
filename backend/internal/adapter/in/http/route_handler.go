@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
 	"YouSightSeeing/backend/internal/app/dto"
@@ -103,6 +104,20 @@ func (h *RouteHandler) CreateRoute(c echo.Context) error {
 		})
 	}
 
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid test user id",
+		})
+	}
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Authorization header required",
+		})
+	}
+
+	req.UserID = userID
+
 	resp, err := h.createRouteUC.Execute(c.Request().Context(), req)
 	if err != nil {
 		status, msg, internalErr := HttpError(err)
@@ -118,12 +133,28 @@ func (h *RouteHandler) CreateRoute(c echo.Context) error {
 }
 
 func (h *RouteHandler) GetRoute(c echo.Context) error {
-	var req dto.GetRouteRequest
-
-	if err := c.Bind(&req); err != nil {
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "invalid json",
+			"error": "invalid test user id",
 		})
+	}
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Authorization header required",
+		})
+	}
+
+	routeID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid route id",
+		})
+	}
+
+	req := dto.GetRouteRequest{
+		RouteID: routeID,
+		UserID:  userID,
 	}
 
 	resp, err := h.getRouteUC.Execute(c.Request().Context(), req)
@@ -141,6 +172,18 @@ func (h *RouteHandler) GetRoute(c echo.Context) error {
 }
 
 func (h *RouteHandler) GetRouteList(c echo.Context) error {
+	userID, ok, err := GetUserIDFromContextOrTestHeader(c)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid test user id",
+		})
+	}
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": "Authorization header required",
+		})
+	}
+
 	var req dto.GetRouteListRequest
 
 	if err := c.Bind(&req); err != nil {
@@ -148,6 +191,8 @@ func (h *RouteHandler) GetRouteList(c echo.Context) error {
 			"error": "invalid json",
 		})
 	}
+
+	req.UserID = userID
 
 	resp, err := h.getRouteListUC.Execute(c.Request().Context(), req)
 	if err != nil {

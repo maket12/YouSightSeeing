@@ -6,42 +6,52 @@ import (
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
+	"strings"
 
-	"github.com/avito-tech/go-transaction-manager/trm/v2"
 	"github.com/google/uuid"
 )
 
 type CreateRouteUC struct {
-	trManager  trm.Manager
+	txManager  port.TransactionManager
 	route      port.RouteRepository
 	routePoint port.RoutePointRepository
 }
 
 func NewCreateRouteUC(
-	trManager trm.Manager,
+	txManager port.TransactionManager,
 	route port.RouteRepository,
 	routePoint port.RoutePointRepository,
 ) *CreateRouteUC {
 	return &CreateRouteUC{
-		trManager:  trManager,
+		txManager:  txManager,
 		route:      route,
 		routePoint: routePoint,
 	}
 }
 
 func (uc *CreateRouteUC) Execute(ctx context.Context, req dto.CreateRouteRequest) (dto.CreateRouteResponse, error) {
+	if req.UserID == uuid.Nil {
+		return dto.CreateRouteResponse{}, uc_errors.InvalidUserID
+	}
+
+	if strings.TrimSpace(req.Title) == "" {
+		req.Title = "Saved route"
+	}
+
+	if len(req.Points) == 0 {
+		return dto.CreateRouteResponse{}, uc_errors.ErrInvalidRoutePoints
+	}
+
 	route, routePoints := mappers.MapCreateRouteToEntities(req)
 
-	err := uc.trManager.Do(ctx, func(txCtx context.Context) error {
-		createErr := uc.route.Create(txCtx, route)
-		if createErr != nil {
-			return uc_errors.Wrap(uc_errors.CreateRouteError, createErr)
+	err := uc.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if err := uc.route.Create(txCtx, route); err != nil {
+			return uc_errors.Wrap(uc_errors.CreateRouteError, err)
 		}
 
 		for _, routePoint := range routePoints {
-			createErr = uc.routePoint.Create(txCtx, routePoint)
-			if createErr != nil {
-				return uc_errors.Wrap(uc_errors.CreateRoutePointError, createErr)
+			if err := uc.routePoint.Create(txCtx, routePoint); err != nil {
+				return uc_errors.Wrap(uc_errors.CreateRoutePointError, err)
 			}
 		}
 

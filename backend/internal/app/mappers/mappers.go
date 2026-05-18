@@ -85,6 +85,7 @@ func MapCreateRouteToEntities(req dto.CreateRouteRequest) (*entity.Route, []*ent
 	routePoints := make([]*entity.RoutePoint, len(req.Points))
 	for i, point := range req.Points {
 		routePoints[i] = &entity.RoutePoint{
+			ID:         uuid.New(),
 			RouteID:    route.ID,
 			Position:   point.Position,
 			PlaceID:    point.PlaceID,

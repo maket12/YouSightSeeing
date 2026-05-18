@@ -115,6 +115,9 @@ func TestRH_CalculateRoute(t *testing.T) {
 				logger,
 				mockCalculateRouteUC,
 				nil,
+				nil,
+				nil,
+				nil,
 			)
 
 			c, rec := createRouteTestContext(
