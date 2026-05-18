@@ -88,7 +88,7 @@ func (h *RouteHandler) GenerateRoute(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-func (h *RouteHandler) SaveRoute(c echo.Context) error {
+func (h *RouteHandler) CreateRoute(c echo.Context) error {
 	var req dto.CreateRouteRequest
 
 	if err := c.Bind(&req); err != nil {
@@ -109,4 +109,27 @@ func (h *RouteHandler) SaveRoute(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, nil)
+}
+
+func (h *RouteHandler) GetRouteList(c echo.Context) error {
+	var req dto.GetRouteListRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "invalid json",
+		})
+	}
+
+	err := h.saveRouteUC.Execute(c.Request().Context(), req)
+	if err != nil {
+		status, msg, internalErr := HttpError(err)
+		h.log.ErrorContext(c.Request().Context(), "failed to get routes list",
+			slog.Int("status", status),
+			slog.String("public_msg", msg),
+			slog.Any("cause", internalErr),
+		)
+		return c.JSON(status, map[string]string{"error": msg})
+	}
+
+	return c.JSON(http.StatusOK, nil)
 }

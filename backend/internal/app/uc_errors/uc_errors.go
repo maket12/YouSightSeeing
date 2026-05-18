@@ -29,6 +29,7 @@ var (
 
 	CreateRouteError      = errors.New("failed to create route using db")
 	GetRouteError         = errors.New("failed to get route using db")
+	GetRouteListError     = errors.New("failed to get a list of routes using db")
 	CreateRoutePointError = errors.New("failed to create route point using db")
 	GetRoutePointsError   = errors.New("failed to get route points using db")
 
