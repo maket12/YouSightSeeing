@@ -61,6 +61,10 @@ type CreateRouteUseCase interface {
 	Execute(ctx context.Context, req dto.CreateRouteRequest) (dto.CreateRouteResponse, error)
 }
 
+type GetRouteUseCase interface {
+	Execute(ctx context.Context, req dto.GetRouteRequest) (dto.GetRouteResponse, error)
+}
+
 type GetRouteListUseCase interface {
 	Execute(ctx context.Context, req dto.GetRouteListRequest) (dto.GetRouteListResponse, error)
 }

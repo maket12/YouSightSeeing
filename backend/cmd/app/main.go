@@ -18,6 +18,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
+	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 )
 
 func parseLogLevel(level string) slog.Level {
@@ -61,6 +64,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Transaction manager
+	trManager := manager.Must(trmpgx.NewDefaultFactory(pgClient.Pool))
+
 	// ======================
 	// 4. Repositories
 	// ======================
@@ -79,6 +85,7 @@ func main() {
 	routeMatrixCalculator := adapterors.NewRouteMatrixCalculator(cfg.ORSApiKey)
 	placesService := adaptergeo.NewPlacesService(cfg.GeopifyAPIKey)
 	routeRepo := adapterdb.NewRouteRepository(db)
+	routePointRepo := adapterdb.NewRoutePointRepository(db)
 
 	// ======================
 	// 5. Usecases
@@ -113,8 +120,9 @@ func main() {
 		userEventRepo,
 		updatePreferenceWeightsUC,
 	)
-	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC)
-	saveRouteUC := usecase.NewCreateRouteUC(routeRepo)
+	createRouteUC := usecase.NewCreateRouteUC(trManager, routeRepo, routePointRepo)
+	getRouteUC := usecase.NewGetRouteUC(routeRepo, routePointRepo)
+	getRouteListUC := usecase.NewGetRouteListUC(routeRepo, routePointRepo)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -131,7 +139,11 @@ func main() {
 		getUserPreferencesUC,
 		updateUserPreferencesUC,
 	)
-	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC, saveRouteUC)
+	routeHandler := adapterhttp.NewRouteHandler(
+		logger, calculateRouteUC,
+		generateRouteUC, createRouteUC,
+		getRouteUC, getRouteListUC,
+	)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
 	eventHandler := adapterhttp.NewEventHandler(logger, trackUserEventUC)
 
