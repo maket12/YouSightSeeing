@@ -35,16 +35,16 @@ func (r *RoutePointRepository) Create(ctx context.Context, routePoint *entity.Ro
 	return nil
 }
 
-func (r *RoutePointRepository) Get(ctx context.Context, routeID uuid.UUID) (*entity.RoutePoint, error) {
+func (r *RoutePointRepository) Get(ctx context.Context, routeID uuid.UUID) ([]entity.RoutePoint, error) {
 	query := `SELECT * FROM route_points WHERE route_id = $1`
 
-	var routePoint entity.RoutePoint
-	if err := r.db.GetContext(ctx, &routePoint, query, routeID); err != nil {
+	var routePoints []entity.RoutePoint
+	if err := r.db.GetContext(ctx, &routePoints, query, routeID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		return nil, fmt.Errorf("failed to get route point: %w", err)
 	}
 
-	return &routePoint, nil
+	return routePoints, nil
 }

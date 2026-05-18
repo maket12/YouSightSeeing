@@ -12,7 +12,7 @@ var (
 	InvalidUserID              = errors.New("invalid user id")
 
 	CreateUserError        = errors.New("failed to create user")
-	GetUserError           = errors.New("failed to get user")
+	GetUserError           = errors.New("failed to get user using db")
 	UpdateUserError        = errors.New("failed to update user")
 	UpdateUserPictureError = errors.New("failed to update user's picture")
 
@@ -28,7 +28,9 @@ var (
 	RevokedRefreshTokenError  = errors.New("refresh token has already been revoked")
 
 	CreateRouteError      = errors.New("failed to create route using db")
+	GetRouteError         = errors.New("failed to get route using db")
 	CreateRoutePointError = errors.New("failed to create route point using db")
+	GetRoutePointsError   = errors.New("failed to get route points using db")
 
 	GenerateAccessTokenError  = errors.New("failed to generate new access token")
 	GenerateRefreshTokenError = errors.New("failed to generate new refresh token")
