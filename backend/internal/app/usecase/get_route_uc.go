@@ -5,6 +5,8 @@ import (
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type GetRouteUC struct {
@@ -23,11 +25,19 @@ func NewGetRouteUC(
 }
 
 func (uc *GetRouteUC) Execute(ctx context.Context, req dto.GetRouteRequest) (dto.GetRouteResponse, error) {
+	if req.UserID == uuid.Nil {
+		return dto.GetRouteResponse{}, uc_errors.InvalidUserID
+	}
+
 	route, err := uc.route.Get(ctx, req.RouteID)
 	if err != nil {
 		return dto.GetRouteResponse{}, uc_errors.Wrap(
 			uc_errors.GetRouteError, err,
 		)
+	}
+
+	if route.UserID != req.UserID && !route.IsPublic {
+		return dto.GetRouteResponse{}, uc_errors.UserNotFoundError
 	}
 
 	routePoints, err := uc.routePoint.Get(ctx, req.RouteID)

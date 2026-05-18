@@ -18,9 +18,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
-	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
 )
 
 func parseLogLevel(level string) slog.Level {
@@ -64,8 +61,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Transaction manager
-	trManager := manager.Must(trmpgx.NewDefaultFactory(pgClient.Pool))
+	txManager := adapterdb.NewTransactionManager(db)
 
 	// ======================
 	// 4. Repositories
@@ -120,7 +116,12 @@ func main() {
 		userEventRepo,
 		updatePreferenceWeightsUC,
 	)
-	createRouteUC := usecase.NewCreateRouteUC(trManager, routeRepo, routePointRepo)
+	createRouteUC := usecase.NewCreateRouteUC(
+		txManager,
+		routeRepo,
+		routePointRepo,
+		trackUserEventUC,
+	)
 	getRouteUC := usecase.NewGetRouteUC(routeRepo, routePointRepo)
 	getRouteListUC := usecase.NewGetRouteListUC(routeRepo, routePointRepo)
 

@@ -5,7 +5,6 @@ import (
 	"YouSightSeeing/backend/internal/app/uc_errors"
 	"YouSightSeeing/backend/internal/domain/port"
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -26,12 +25,21 @@ func NewGetRouteListUC(
 }
 
 func (uc *GetRouteListUC) Execute(ctx context.Context, req dto.GetRouteListRequest) (dto.GetRouteListResponse, error) {
-	userID, err := uuid.Parse(ctx.Value("user-id").(string))
-	if err != nil {
-		return dto.GetRouteListResponse{}, fmt.Errorf("invalid user id: %s", userID)
+	if req.UserID == uuid.Nil {
+		return dto.GetRouteListResponse{}, uc_errors.InvalidUserID
 	}
 
-	routes, err := uc.route.GetListByUserID(ctx, userID, req.Limit, req.Offset)
+	if req.Limit <= 0 {
+		req.Limit = 20
+	}
+	if req.Limit > 100 {
+		req.Limit = 100
+	}
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+
+	routes, err := uc.route.GetListByUserID(ctx, req.UserID, req.Limit, req.Offset)
 	if err != nil {
 		return dto.GetRouteListResponse{}, uc_errors.Wrap(
 			uc_errors.GetRouteListError, err,
@@ -42,7 +50,9 @@ func (uc *GetRouteListUC) Execute(ctx context.Context, req dto.GetRouteListReque
 	for i, route := range routes {
 		routePoints, getErr := uc.routePoint.Get(ctx, route.ID)
 		if getErr != nil {
-			continue
+			return dto.GetRouteListResponse{}, uc_errors.Wrap(
+				uc_errors.GetRoutePointsError, getErr,
+			)
 		}
 
 		pointsResp := make([]dto.RoutePointResponse, len(routePoints))

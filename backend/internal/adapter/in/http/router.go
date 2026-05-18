@@ -52,6 +52,9 @@ func (r *Router) InitRoutes() *echo.Echo {
 			debugGroup.POST("/routes/generate", r.route.GenerateRoute)
 			debugGroup.GET("/users/preferences", r.user.GetPreferences)
 			debugGroup.PATCH("/users/preferences", r.user.UpdatePreferences)
+			debugGroup.POST("/routes", r.route.CreateRoute)
+			debugGroup.GET("/routes/:id", r.route.GetRoute)
+			debugGroup.GET("/routes", r.route.GetRouteList)
 		}
 	}
 
@@ -71,6 +74,7 @@ func (r *Router) InitRoutes() *echo.Echo {
 			routesGroup.POST("/calculate", r.route.CalculateRoute)
 			routesGroup.POST("/generate", r.route.GenerateRoute)
 			routesGroup.POST("/create", r.route.CreateRoute)
+			routesGroup.POST("", r.route.CreateRoute)
 			routesGroup.GET("/:id", r.route.GetRoute)
 			routesGroup.GET("", r.route.GetRouteList)
 		}

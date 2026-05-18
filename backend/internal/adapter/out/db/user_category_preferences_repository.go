@@ -42,7 +42,7 @@ func (r *UserCategoryPreferencesRepository) Upsert(
 			updated_at = EXCLUDED.updated_at
 	`
 
-	if _, err := r.db.NamedExecContext(ctx, query, preference); err != nil {
+	if _, err := sqlx.NamedExecContext(ctx, executor(ctx, r.db), query, preference); err != nil {
 		return fmt.Errorf("failed to upsert user category preference using db: %w", err)
 	}
 
@@ -61,7 +61,7 @@ func (r *UserCategoryPreferencesRepository) GetByUserID(
 	`
 
 	var preferences []entity.UserCategoryPreference
-	if err := r.db.SelectContext(ctx, &preferences, query, userID); err != nil {
+	if err := sqlx.SelectContext(ctx, executor(ctx, r.db), &preferences, query, userID); err != nil {
 		return nil, fmt.Errorf("failed to get user category preferences using db: %w", err)
 	}
 
@@ -80,7 +80,7 @@ func (r *UserCategoryPreferencesRepository) GetByUserIDAndCategory(
 	`
 
 	var preference entity.UserCategoryPreference
-	if err := r.db.GetContext(ctx, &preference, query, userID, category); err != nil {
+	if err := sqlx.GetContext(ctx, executor(ctx, r.db), &preference, query, userID, category); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (r *UserCategoryPreferencesRepository) DeleteByUserID(
 ) error {
 	query := `DELETE FROM user_category_preferences WHERE user_id = $1`
 
-	if _, err := r.db.ExecContext(ctx, query, userID); err != nil {
+	if _, err := executor(ctx, r.db).ExecContext(ctx, query, userID); err != nil {
 		return fmt.Errorf("failed to delete user category preferences using db: %w", err)
 	}
 

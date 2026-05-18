@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type RouteRepository struct {
@@ -20,17 +21,45 @@ func NewRouteRepository(db *sqlx.DB) *RouteRepository {
 }
 
 func (r *RouteRepository) Create(ctx context.Context, route *entity.Route) error {
-	query := `INSERT INTO routes (
-                 id, user_id, title, start_latitude, start_longitude, 
-                 distance, duration, categories, max_places, 
-                 include_food, is_public, share_code, created_at, updated_at
-            ) VALUES (
-                :id, :user_id, :title, :start_latitude, :start_longitude,
-                :distance, :duration, :categories, :max_places,
-                :include_food, :is_public, :share_code, :created_at, :updated_at
-            );`
+	query := `
+		INSERT INTO routes (
+			id,
+			user_id,
+			title,
+			start_latitude,
+			start_longitude,
+			distance,
+			duration,
+			categories,
+			max_places,
+			include_food,
+			is_public,
+			share_code,
+			created_at,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`
 
-	if _, err := r.db.NamedExecContext(ctx, query, route); err != nil {
+	_, err := executor(ctx, r.db).ExecContext(
+		ctx,
+		query,
+		route.ID,
+		route.UserID,
+		route.Title,
+		route.StartLatitude,
+		route.StartLongitude,
+		route.Distance,
+		route.Duration,
+		pq.Array(route.Categories),
+		route.MaxPlaces,
+		route.IncludeFood,
+		route.IsPublic,
+		route.ShareCode,
+		route.CreatedAt,
+		route.UpdatedAt,
+	)
+	if err != nil {
 		return fmt.Errorf("failed to create route: %w", err)
 	}
 

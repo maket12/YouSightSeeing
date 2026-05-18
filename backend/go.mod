@@ -3,6 +3,7 @@ module YouSightSeeing/backend
 go 1.25.5
 
 require (
+	github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2 v2.0.2
 	github.com/avito-tech/go-transaction-manager/trm/v2 v2.0.2
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
