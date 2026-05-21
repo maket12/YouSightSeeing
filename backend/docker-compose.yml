@@ -53,7 +53,7 @@ services:
       ORS_API_KEY: "${ORS_API_KEY}"
       GEOPIFY_API_KEY: "${GEOPIFY_API_KEY}"
     ports:
-      - "8081:8080"
+      - "8080:8080"
 
 volumes:
   pgdata:
