@@ -144,8 +144,32 @@ public class AuthActivity extends AppCompatActivity {
                 .getString("email", null);
     }
 
+    public static void saveTokens(String accessToken, String refreshToken) {
+        if (appContext == null) return;
+
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit()
+                .putString("access_token", accessToken);
+
+        if (refreshToken != null && !refreshToken.isEmpty()) {
+            editor.putString("refresh_token", refreshToken);
+        }
+
+        editor.apply();
+    }
+
+    public static void clearTokens() {
+        if (appContext == null) return;
+
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+                .remove("access_token")
+                .remove("refresh_token")
+                .apply();
+    }
+
     private void navigateToMain() {
-        startActivity(new Intent(this, SplashActivity.class));
+        startActivity(new Intent(this, PreferencesActivity.class));
         finish();
     }
 

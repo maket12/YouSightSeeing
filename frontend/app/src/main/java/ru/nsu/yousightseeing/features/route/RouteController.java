@@ -39,6 +39,7 @@ public class RouteController {
     private final List<Point> selectedPoints = new ArrayList<>();
     private final Set<PlacemarkMapObject> selectedMarkers = new HashSet<>();
     private final List<PlacemarkMapObject> customMarkers = new ArrayList<>();
+    private int routeRequestVersion = 0;
 
     public interface RouteControllerCallback {
         void onRouteStateChanged();
@@ -134,12 +135,12 @@ public class RouteController {
 
         callback.showToast("Построение оптимального маршрута...");
 
-        List<Point> optimizedPoints = RouteOptimizer.optimize(cleanedPoints);
+        List<Point> optimizedPoints = cleanedPoints;
 
         RouteApi.calculateRoute(
                 mainActivity,
                 optimizedPoints,
-                true,
+                false,
                 new RouteApi.RouteCallback() {
                     @Override
                     public void onSuccess(List<Point> routeCoordinates, double distance, double duration) {
@@ -231,16 +232,22 @@ public class RouteController {
             return;
         }
 
-        List<Point> optimizedPoints = RouteOptimizer.optimize(cleanedPoints);
+        List<Point> optimizedPoints = cleanedPoints;
+
+        final int requestVersion = ++routeRequestVersion;
 
         RouteApi.calculateRoute(
                 mainActivity,
                 optimizedPoints,
-                true,
+                false,
                 new RouteApi.RouteCallback() {
                     @Override
                     public void onSuccess(List<Point> routeCoordinates, double distance, double duration) {
                         mainActivity.runOnUiThread(() -> {
+                            if (requestVersion != routeRequestVersion) {
+                                return;
+                            }
+
                             Route newRoute = new Route(routeCoordinates, distance, duration);
                             callback.setCurrentRoute(newRoute);
                             mapRouteHelper.drawRoute(routeCoordinates);
@@ -271,9 +278,58 @@ public class RouteController {
     }
 
     public void reset() {
+        if (uiManager.mapView != null && uiManager.mapView.getMapWindow() != null) {
+            MapObjectCollection mapObjects = uiManager.mapView
+                    .getMapWindow()
+                    .getMap()
+                    .getMapObjects();
+
+            for (PlacemarkMapObject marker : selectedMarkers) {
+                try {
+                    mapObjects.remove(marker);
+                } catch (Exception ignored) {
+                }
+            }
+
+            for (PlacemarkMapObject marker : customMarkers) {
+                try {
+                    mapObjects.remove(marker);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
         selectedPoints.clear();
         selectedMarkers.clear();
         customMarkers.clear();
+
+        callback.setCurrentRoute(null);
+        callback.onRouteStateChanged();
+    }
+
+    public void moveRoutePoint(Point point, int direction) {
+        int fromIndex = -1;
+
+        for (int i = 0; i < selectedPoints.size(); i++) {
+            Point current = selectedPoints.get(i);
+
+            if (Math.abs(current.getLatitude() - point.getLatitude()) < 1e-6
+                    && Math.abs(current.getLongitude() - point.getLongitude()) < 1e-6) {
+                fromIndex = i;
+                break;
+            }
+        }
+
+        if (fromIndex == -1) return;
+
+        int toIndex = fromIndex + direction;
+
+        if (toIndex < 0 || toIndex >= selectedPoints.size()) return;
+
+        Point moved = selectedPoints.remove(fromIndex);
+        selectedPoints.add(toIndex, moved);
+
+        updateOptimalRoute();
         callback.onRouteStateChanged();
     }
 

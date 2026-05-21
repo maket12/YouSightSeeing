@@ -13,6 +13,7 @@ import ru.nsu.yousightseeing.features.main.MainUIManager;
 
 public class MainActivity extends AppCompatActivity implements MainContract.View {
 
+    private boolean shouldExpandEditorOnResume = false;
     @Inject
     MainUIManager uiManager;
     @Inject
@@ -30,6 +31,7 @@ public class MainActivity extends AppCompatActivity implements MainContract.View
 
         boolean allowGeo = getIntent().getBooleanExtra("ALLOW_GEO", false);
         presenter.initialize(allowGeo);
+        handleIncomingIntent(getIntent());
     }
 
     @Override
@@ -56,6 +58,31 @@ public class MainActivity extends AppCompatActivity implements MainContract.View
         MapKitFactory.getInstance().onStop();
         presenter.onStop();
         super.onStop();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+
+        if (intent.getBooleanExtra("reset_builder", false)) {
+            presenter.resetRouteBuilder();
+            intent.removeExtra("reset_builder");
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (presenter != null) {
+            presenter.onResumeFromRouteScreen();
+        }
     }
 
     @Override

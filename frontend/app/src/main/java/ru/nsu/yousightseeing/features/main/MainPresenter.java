@@ -99,6 +99,8 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
     private MapPoiHelper mapPoiHelper;
     private MapPointHelper mapPointHelper;
 
+    private boolean shouldExpandEditorOnResume = false;
+
     public MainPresenter(MainActivity mainActivity, MainUIManager uiManager) {
         this.view = mainActivity;
         this.uiManager = uiManager;
@@ -219,6 +221,8 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
             TextView tvSubtitle = item.findViewById(R.id.tvPlaceSubtitle);
             android.widget.ImageButton btnRemove = item.findViewById(R.id.btnRemovePlace);
             View pill = item.findViewById(R.id.placePill);
+            android.widget.ImageButton btnMoveUp = item.findViewById(R.id.btnMoveUp);
+            android.widget.ImageButton btnMoveDown = item.findViewById(R.id.btnMoveDown);
 
             String title;
             if (place != null && place.name != null && !place.name.isEmpty()) {
@@ -239,6 +243,27 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
             };
             btnRemove.setOnClickListener(removeListener);
             pill.setOnClickListener(removeListener);
+
+            final int currentIndex = routePoints.indexOf(point);
+
+            if (btnMoveUp != null) {
+                btnMoveUp.setEnabled(currentIndex > 0);
+                btnMoveUp.setAlpha(currentIndex > 0 ? 1.0f : 0.3f);
+
+                btnMoveUp.setOnClickListener(v -> {
+                    routeController.moveRoutePoint(point, -1);
+                });
+            }
+
+            if (btnMoveDown != null) {
+                btnMoveDown.setEnabled(currentIndex < routePoints.size() - 1);
+                btnMoveDown.setAlpha(currentIndex < routePoints.size() - 1 ? 1.0f : 0.3f);
+
+                btnMoveDown.setOnClickListener(v -> {
+                    routeController.moveRoutePoint(point, 1);
+                });
+            }
+
             uiManager.placesContainer.addView(item);
         }
     }
@@ -344,18 +369,34 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
         if (uiManager.btnAddPlace != null) {
             uiManager.btnAddPlace.setOnClickListener(v -> {
                 applyBuildModeUI(RouteBuildMode.MANUAL);
+
                 if (startPointController.getStartPoint() == null) {
                     view.showToast("Сначала выберите отправную точку");
                     startPointController.enableStartPointSelection();
+
+                    updateAllUI();
+                    uiStateController.collapseBottomSheet();
                     return;
                 }
+
                 Point startPoint = startPointController.getStartPoint();
-                if (poiController.getPoiMarkers().isEmpty() || poiController.getLastPoiCenter() == null || DistanceHelper.distanceInMeters(startPoint, poiController.getLastPoiCenter()) > 100) {
-                    poiController.searchNearbyPlaces(startPoint.getLatitude(), startPoint.getLongitude());
+
+                if (poiController.getPoiMarkers().isEmpty()
+                        || poiController.getLastPoiCenter() == null
+                        || DistanceHelper.distanceInMeters(startPoint, poiController.getLastPoiCenter()) > 100) {
+
+                    poiController.searchNearbyPlaces(
+                            startPoint.getLatitude(),
+                            startPoint.getLongitude()
+                    );
+
+                    view.showToast("Загружаем места рядом со стартом...");
                 } else {
                     view.showToast("Тапните по точкам на карте, чтобы добавить или убрать их");
                 }
+
                 updateAllUI();
+                uiStateController.collapseBottomSheet();
             });
         }
         if (uiManager.btnBuildRoute != null) {
@@ -375,8 +416,8 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
                         return;
                     }
                     uiStateController.collapseBottomSheet();
+                    shouldExpandEditorOnResume = true;
                     routeController.buildOptimalRoute();
-                    isRouteBuilt = true;
                 } else if (currentBuildMode == RouteBuildMode.AUTO) {
                     if (startPointController.getStartPoint() == null) {
                         startPointController.enableStartPointSelection();
@@ -432,6 +473,27 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
                 })
                 .setNegativeButton("Отмена", null)
                 .show();
+    }
+
+    @Override
+    public void onResumeFromRouteScreen() {
+        if (!shouldExpandEditorOnResume) {
+            return;
+        }
+
+        shouldExpandEditorOnResume = false;
+
+        isRouteBuilt = false;
+        currentBuildMode = RouteBuildMode.MANUAL;
+
+        applyBuildModeUI(RouteBuildMode.MANUAL);
+
+        if (uiManager.toggleRouteMode != null) {
+            uiManager.toggleRouteMode.check(R.id.btnModeManual);
+        }
+
+        updateAllUI();
+        uiStateController.expandBottomSheet();
     }
 
     private void initializeSearch() {
@@ -500,6 +562,22 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
         this.currentRoute = route;
     }
 
+    @Override
+    public void resetRouteBuilder() {
+        fullResetRoute();
+
+        currentBuildMode = RouteBuildMode.MANUAL;
+        applyBuildModeUI(RouteBuildMode.MANUAL);
+
+        if (uiManager.toggleRouteMode != null) {
+            uiManager.toggleRouteMode.check(R.id.btnModeManual);
+        }
+
+        uiStateController.expandBottomSheet();
+
+        view.showToast("Маршрут сброшен");
+    }
+
     private void resetRoute() {
         MapResetHelper.fullReset(uiManager.mapView, poiController.getPoiMarkers(), routeController.getCustomMarkers(), routeController.getSelectedMarkers(), mapRouteHelper, mapPointHelper);
         if (autoRouteController != null) autoRouteController.cancel();
@@ -547,9 +625,6 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
     public void onStart() {
         if (locationHelper != null) {
             locationHelper.setVisible(true);
-            if (allowGeo) {
-                locationHelper.requestUserLocation();
-            }
         }
     }
 
@@ -621,6 +696,7 @@ public class MainPresenter implements MainContract.Presenter, MapInteractionCont
         intent.putExtra(RouteConfirmationActivity.EXTRA_DISTANCE, result.distance);
         intent.putExtra(RouteConfirmationActivity.EXTRA_DURATION, result.duration);
 
+        shouldExpandEditorOnResume = true;
         mainActivity.startActivity(intent);
         updateAllUI();
         uiStateController.collapseBottomSheet();

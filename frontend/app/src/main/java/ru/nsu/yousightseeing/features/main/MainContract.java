@@ -13,5 +13,7 @@ public interface MainContract {
         void onRequestPermissionsResult(int requestCode, int[] grantResults);
         void onStart();
         void onStop();
+        void resetRouteBuilder();
+        void onResumeFromRouteScreen();
     }
 }

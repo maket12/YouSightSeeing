@@ -101,6 +101,8 @@ public final class RouteApi {
             bodyJson.put("profile", "foot-walking");
             bodyJson.put("preference", "fastest");
             bodyJson.put("optimize_order", optimizeOrder);
+
+            Log.d("ROUTE_API_BODY", bodyJson.toString());
         } catch (JSONException e) {
             cb.onError("Ошибка формирования запроса");
             return;
@@ -128,6 +130,9 @@ public final class RouteApi {
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 String respBody = response.body() != null ? response.body().string() : "";
+
+                Log.d("ROUTE_API_RESPONSE", respBody);
+
                 if (respBody == null || respBody.isEmpty()) {
                     cb.onError("Пустой ответ от сервера");
                     return;

@@ -96,6 +96,9 @@
         android:layout_gravity="bottom"
         android:background="@drawable/bg_bottom_sheet"
         android:orientation="vertical"
+        android:clickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
         app:behavior_hideable="false"
         app:behavior_peekHeight="84dp"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
