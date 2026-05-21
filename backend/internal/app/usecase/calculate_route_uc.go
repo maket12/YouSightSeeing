@@ -20,15 +20,17 @@ func NewCalculateRouteUC(service port.RouteCalculator) *CalculateRouteUC {
 }
 
 func (uc *CalculateRouteUC) Execute(ctx context.Context, req dto.CalculateRouteRequest) (dto.CalculateRouteResponse, error) {
-	// Validation
 	if len(req.Coordinates) < 2 {
 		return dto.CalculateRouteResponse{}, uc_errors.ErrInvalidRoutePoints
 	}
 
-	sortedPoints := utils.SortPointsNearestNeighbor(req.Coordinates)
+	coordinates := req.Coordinates
+	if req.OptimizeOrder {
+		coordinates = utils.SortPointsNearestNeighbor(req.Coordinates)
+	}
 
 	orsReq := entity.ORSRequest{
-		Coordinates:  sortedPoints,
+		Coordinates:  coordinates,
 		Instructions: false,
 		Geometry:     true,
 	}
