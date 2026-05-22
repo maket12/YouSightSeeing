@@ -10,9 +10,14 @@ public final class ApiConfig {
     public static final String AUTH_LOGOUT  = BASE_URL + "/auth/logout";
 
     // Маршруты
+    public static final String ROUTES = BASE_URL + "/api/routes";
     public static final String ROUTES_CALCULATE  = BASE_URL + "/api/routes/calculate";
     public static final String PLACES_SEARCH = BASE_URL + "/api/places/search";
     public static final String ROUTES_GENERATE = BASE_URL + "/api/routes/generate";
+
+    public static String routeById(String routeId) {
+        return ROUTES + "/" + routeId;
+    }
 
     // Профиль
     public static final String USERS_ME          = BASE_URL + "/api/users/me";

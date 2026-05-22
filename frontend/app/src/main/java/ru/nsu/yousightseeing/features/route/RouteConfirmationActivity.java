@@ -6,6 +6,7 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
@@ -26,8 +27,12 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.text.DateFormat;
+import java.util.Date;
 
 import ru.nsu.yousightseeing.R;
+import ru.nsu.yousightseeing.api.PlacesApi;
+import ru.nsu.yousightseeing.api.RouteApi;
 
 public class RouteConfirmationActivity extends AppCompatActivity {
 
@@ -47,6 +52,10 @@ public class RouteConfirmationActivity extends AppCompatActivity {
     private Button btnZoomOutConfirm;
 
     private PolylineMapObject routeLine;
+    private List<Point> routePoints = new ArrayList<>();
+    private List<RoutePlaceItem> places = new ArrayList<>();
+    private double distance;
+    private double duration;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -63,15 +72,15 @@ public class RouteConfirmationActivity extends AppCompatActivity {
         btnZoomInConfirm = findViewById(R.id.btnZoomInConfirm);
         btnZoomOutConfirm = findViewById(R.id.btnZoomOutConfirm);
 
-        List<Point> routePoints = parseRoutePoints(
+        routePoints = parseRoutePoints(
                 getIntent().getStringExtra(EXTRA_ROUTE_POINTS_JSON)
         );
-        List<RoutePlaceItem> places = parsePlaces(
+        places = parsePlaces(
                 getIntent().getStringExtra(EXTRA_PLACES_JSON)
         );
 
-        double distance = getIntent().getDoubleExtra(EXTRA_DISTANCE, 0.0);
-        double duration = getIntent().getDoubleExtra(EXTRA_DURATION, 0.0);
+        distance = getIntent().getDoubleExtra(EXTRA_DISTANCE, 0.0);
+        duration = getIntent().getDoubleExtra(EXTRA_DURATION, 0.0);
 
         renderSummary(distance, duration, places.size());
         renderPlaces(places);
@@ -79,25 +88,98 @@ public class RouteConfirmationActivity extends AppCompatActivity {
 
         btnEditRoute.setOnClickListener(v -> finish());
 
-        btnConfirmRoute.setOnClickListener(v -> {
-            Intent intent = new Intent(this, RouteFinalActivity.class);
-
-            intent.putExtra(EXTRA_ROUTE_POINTS_JSON,
-                    getIntent().getStringExtra(EXTRA_ROUTE_POINTS_JSON));
-            intent.putExtra(EXTRA_PLACES_JSON,
-                    getIntent().getStringExtra(EXTRA_PLACES_JSON));
-            intent.putExtra(EXTRA_DISTANCE,
-                    getIntent().getDoubleExtra(EXTRA_DISTANCE, 0.0));
-            intent.putExtra(EXTRA_DURATION,
-                    getIntent().getDoubleExtra(EXTRA_DURATION, 0.0));
-
-            startActivity(intent);
-        });
+        btnConfirmRoute.setOnClickListener(v -> saveRouteAndOpenFinal());
 
         btnZoomInConfirm.setOnClickListener(v -> zoomIn());
         btnZoomOutConfirm.setOnClickListener(v -> zoomOut());
     }
 
+    private void saveRouteAndOpenFinal() {
+        if (routePoints == null || routePoints.isEmpty()) {
+            Toast.makeText(this, "Нет маршрута для сохранения", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        btnConfirmRoute.setEnabled(false);
+        btnConfirmRoute.setText("Сохраняем...");
+
+        Point start = routePoints.get(0);
+
+        List<PlacesApi.Place> placesForRequest = new ArrayList<>();
+
+        for (RoutePlaceItem item : places) {
+            PlacesApi.Place place = new PlacesApi.Place();
+            place.name = item.name;
+            place.address = "";
+            place.placeId = null;
+            place.lat = item.lat;
+            place.lon = item.lon;
+
+            placesForRequest.add(place);
+        }
+
+        String title = "Маршрут " + DateFormat
+                .getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                .format(new Date());
+
+        RouteApi.createRoute(
+                this,
+                title,
+                start.getLatitude(),
+                start.getLongitude(),
+                distance,
+                duration,
+                new ArrayList<>(),
+                places.size(),
+                false,
+                false,
+                placesForRequest,
+                new RouteApi.CreateRouteCallback() {
+                    @Override
+                    public void onSuccess(String routeId) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(
+                                    RouteConfirmationActivity.this,
+                                    "Маршрут сохранён",
+                                    Toast.LENGTH_SHORT
+                            ).show();
+
+                            openFinalRouteScreen(routeId);
+                        });
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        runOnUiThread(() -> {
+                            btnConfirmRoute.setEnabled(true);
+                            btnConfirmRoute.setText("Сохранить");
+
+                            Toast.makeText(
+                                    RouteConfirmationActivity.this,
+                                    message,
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        });
+                    }
+                }
+        );
+    }
+
+    private void openFinalRouteScreen(String routeId) {
+        Intent intent = new Intent(this, RouteFinalActivity.class);
+
+        intent.putExtra(EXTRA_ROUTE_POINTS_JSON,
+                getIntent().getStringExtra(EXTRA_ROUTE_POINTS_JSON));
+        intent.putExtra(EXTRA_PLACES_JSON,
+                getIntent().getStringExtra(EXTRA_PLACES_JSON));
+        intent.putExtra(EXTRA_DISTANCE,
+                getIntent().getDoubleExtra(EXTRA_DISTANCE, 0.0));
+        intent.putExtra(EXTRA_DURATION,
+                getIntent().getDoubleExtra(EXTRA_DURATION, 0.0));
+        intent.putExtra("saved_route_id", routeId);
+
+        startActivity(intent);
+    }
     private void zoomIn() {
         if (mapView == null || mapView.getMapWindow() == null) return;
 
