@@ -45,6 +45,14 @@ public final class PlacesApi {
         public double lat;
         public double lon;
         public String placeId;
+
+        public Place() {}
+
+        public Place(String name, double lat, double lon) {
+            this.name = name;
+            this.lat = lat;
+            this.lon = lon;
+        }
     }
 
     /**

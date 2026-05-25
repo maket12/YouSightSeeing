@@ -112,7 +112,7 @@ public class PreferencesActivity extends AppCompatActivity {
     }
 
     private void navigateToMain() {
-        startActivity(new Intent(this, SplashActivity.class));
+        startActivity(new Intent(this, PermissionActivity.class));
         finish();
     }
 }

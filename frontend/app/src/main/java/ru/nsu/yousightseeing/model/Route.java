@@ -10,19 +10,21 @@ public class Route {
     private List<Point> points;
     private String name;
     private double distance;
+    private double duration;
     private long createdAt;
 
-    public Route(List<Point> points, String name) {
+    public Route(List<Point> points, double distance, double duration) {
         this.points = points;
-        this.name = name;
-        this.distance = 0;
+        this.distance = distance;
+        this.duration = duration;
         this.createdAt = System.currentTimeMillis();
     }
 
-    public Route(List<Point> points, String name, double distance) {
+    public Route(List<Point> points, String name, double distance, double duration) {
         this.points = points;
         this.name = name;
         this.distance = distance;
+        this.duration = duration;
         this.createdAt = System.currentTimeMillis();
     }
 
@@ -44,6 +46,10 @@ public class Route {
 
     public void setDistance(double distance) {
         this.distance = distance;
+    }
+
+    public double getDuration() {
+        return duration;
     }
 
     public long getCreatedAt() {

@@ -43,7 +43,23 @@
             android:textSize="12sp"
             android:alpha="0.6"
             android:maxLines="1" />
+
     </LinearLayout>
+    <ImageButton
+        android:id="@+id/btnMoveUp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@android:color/transparent"
+        android:src="@android:drawable/arrow_up_float"
+        android:contentDescription="Переместить вверх" />
+
+    <ImageButton
+        android:id="@+id/btnMoveDown"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@android:color/transparent"
+        android:src="@android:drawable/arrow_down_float"
+        android:contentDescription="Переместить вниз" />
 
     <ImageButton
         android:id="@+id/btnRemovePlace"
