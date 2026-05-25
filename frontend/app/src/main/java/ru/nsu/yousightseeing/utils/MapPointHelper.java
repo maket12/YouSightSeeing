@@ -36,7 +36,7 @@ public class MapPointHelper {
 
         if (startPoint != null) {
             startPointMarker = mapObjects.addPlacemark(startPoint);
-            ImageProvider.fromResource(context, R.drawable.pinm); // Замените my_position на нужную иконку
+            ImageProvider.fromResource(context, R.drawable.user_geo); // Замените my_position на нужную иконку
         }
     }
 

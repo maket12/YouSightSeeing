@@ -260,7 +260,20 @@ public class RouteFinalActivity extends AppCompatActivity {
         }
 
         if (duration > 0) {
-            tvDuration.setText(String.format("%.0f мин", duration / 60.0));
+            int totalMinutes = (int) (duration / 60);
+
+            int hours = totalMinutes / 60;
+            int minutes = totalMinutes % 60;
+
+            String durationText;
+
+            if (hours > 0) {
+                durationText = hours + " ч " + minutes + " мин";
+            } else {
+                durationText = minutes + " мин";
+            }
+
+            tvDuration.setText(durationText);
         } else {
             tvDuration.setText("—");
         }
@@ -299,7 +312,7 @@ public class RouteFinalActivity extends AppCompatActivity {
         for (RoutePlaceItem place : places) {
             Point point = new Point(place.lat, place.lon);
             PlacemarkMapObject marker = mapObjects.addPlacemark(point);
-            marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            marker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm_selected));
         }
 
         if (!routePoints.isEmpty()) {
@@ -399,7 +412,7 @@ public class RouteFinalActivity extends AppCompatActivity {
 
         if (userMarker == null) {
             userMarker = mapObjects.addPlacemark(userPoint);
-            userMarker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm));
+            userMarker.setIcon(ImageProvider.fromResource(this, R.drawable.pinm_selected));
             userMarker.setZIndex(100f);
         } else {
             userMarker.setGeometry(userPoint);

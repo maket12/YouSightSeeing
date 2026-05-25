@@ -170,9 +170,24 @@ public class ProfileActivity extends AppCompatActivity {
                     ? String.format("%.1f км", route.distance / 1000.0)
                     : "—";
 
-            String durationText = route.duration > 0
-                    ? String.format("%d мин", route.duration / 60)
-                    : "—";
+            String durationText;
+
+            if (route.duration > 0) {
+
+                int totalMinutes = (int) (route.duration / 60);
+
+                int hours = totalMinutes / 60;
+                int minutes = totalMinutes % 60;
+
+                if (hours > 0) {
+                    durationText = hours + " ч " + minutes + " мин";
+                } else {
+                    durationText = minutes + " мин";
+                }
+
+            } else {
+                durationText = "—";
+            }
 
             item.setText(route.title + "\n" + distanceText + " • " + durationText + " • точек: " + route.points.size());
             item.setTextColor(getResources().getColor(R.color.text_primary));

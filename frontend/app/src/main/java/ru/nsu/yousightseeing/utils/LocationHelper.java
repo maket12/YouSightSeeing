@@ -107,7 +107,7 @@ public class LocationHelper {
             public void onObjectAdded(UserLocationView view) {
                 try {
                     view.getPin().setIcon(
-                            ImageProvider.fromResource(activity, R.drawable.pinm)
+                            ImageProvider.fromResource(activity, R.drawable.user_geo)
                     );
                 } catch (Exception e) {
                     Log.w("LocationHelper", "Иконка пользователя не найдена");
