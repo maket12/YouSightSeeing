@@ -68,7 +68,7 @@ public class MapPoiHelper {
         clearNearbyPlaces(poiMarkers, selectedMarkers);
         selectedPoints.clear();
 
-        ImageProvider pinProvider = ImageProvider.fromResource(context, android.R.drawable.btn_star_big_on);
+        ImageProvider pinProvider = ImageProvider.fromResource(context, R.drawable.pinm_selected);
 
         for (PlacesApi.Place place : places) {
             if (place.lat != 0 && place.lon != 0) {

@@ -111,9 +111,9 @@ public class SearchHelper implements Session.SearchListener {
             if (resultLocation != null) {
                 ImageProvider searchResultImageProvider = null;
                 try {
-                    searchResultImageProvider = ImageProvider.fromResource(context, R.drawable.search_result);
+                    searchResultImageProvider = ImageProvider.fromResource(context, R.drawable.pinm);
                 } catch (Exception e) {
-                    Log.e("SearchHelper", "Ошибка загрузки R.drawable.search_result: " + e.getMessage());
+                    Log.e("SearchHelper", "Ошибка загрузки R.drawable.pinm: " + e.getMessage());
                     Toast.makeText(context, "Ошибка загрузки иконки метки", Toast.LENGTH_SHORT).show();
                 }
 

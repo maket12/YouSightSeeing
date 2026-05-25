@@ -86,7 +86,7 @@ public class RouteController {
             selectedMarkers.add(marker);
             selectedPoints.add(placeLocation);
 
-            marker.setIcon(ImageProvider.fromResource(mainActivity, android.R.drawable.btn_star_big_on));
+            marker.setIcon(ImageProvider.fromResource(mainActivity, R.drawable.pinm_selected));
 
             String placeName = (place.name != null && !place.name.isEmpty()) ? place.name : String.format("%.5f, %.5f", place.lat, place.lon);
             callback.showToast(placeName + " добавлено (" + getManualSelectedPlacesCount() + ")");
