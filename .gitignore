@@ -12,3 +12,4 @@ frontend/.gradle
 frontend/app/build
 frontend/build
 frontend/app/google-services.json
+frontend/local.properties
