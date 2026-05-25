@@ -9,6 +9,9 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -21,23 +24,42 @@ const (
 	maxPointDistanceFromStartM   = 2500.0
 	maxPointDistanceFromClusterM = 1200.0
 	maxNearDuplicateDistanceM    = 120.0
+
+	recentUserEventsLimit = 100
+
+	routeGeneratedPlacePenalty = 0.08
+	routeCompletedPlacePenalty = 0.05
+	maxPlacePenalty            = 0.30
+
+	placeViewedBonus = 0.03
+	routeOpenedBonus = 0.02
+	routeSavedBonus  = 0.08
+	maxPlaceBonus    = 0.20
+
+	minCandidateScore = 0.05
 )
 
 type GenerateRouteUC struct {
 	searchPlacesUC   SearchPlacesUseCase
 	calculateUC      CalculateRouteUseCase
 	matrixCalculator port.RouteMatrixCalculator
+	preferencesRepo  port.UserCategoryPreferencesRepository
+	userEventRepo    port.UserEventRepository
 }
 
 func NewGenerateRouteUC(
 	searchPlacesUC SearchPlacesUseCase,
 	calculateUC CalculateRouteUseCase,
 	matrixCalculator port.RouteMatrixCalculator,
+	preferencesRepo port.UserCategoryPreferencesRepository,
+	userEventRepo port.UserEventRepository,
 ) *GenerateRouteUC {
 	return &GenerateRouteUC{
 		searchPlacesUC:   searchPlacesUC,
 		calculateUC:      calculateUC,
 		matrixCalculator: matrixCalculator,
+		preferencesRepo:  preferencesRepo,
+		userEventRepo:    userEventRepo,
 	}
 }
 
@@ -63,7 +85,16 @@ func (uc *GenerateRouteUC) Execute(
 	}
 
 	timeBudgetSeconds := float64(req.DurationMinutes * 60)
-	categories := normalizeCategories(req.Categories, req.IncludeFood)
+
+	preferenceWeights, requestedCategories := uc.resolvePreferenceWeights(
+		ctx,
+		req.UserID,
+		req.Categories,
+		req.IncludeFood,
+	)
+
+	categories := normalizeCategories(requestedCategories, req.IncludeFood)
+	placeScoreAdjustments := uc.resolvePlaceScoreAdjustments(ctx, req.UserID)
 
 	searchResp, err := uc.searchPlacesUC.Execute(ctx, dto.SearchPlacesRequest{
 		Lat:        req.StartLat,
@@ -72,13 +103,16 @@ func (uc *GenerateRouteUC) Execute(
 		Categories: categories,
 		Limit:      max(req.MaxPlaces*4, 20),
 	})
+
 	if err != nil {
 		return dto.GenerateRouteResponse{}, err
 	}
 
 	candidates := buildRecommendationCandidates(
 		searchResp.Places,
-		req.Categories,
+		requestedCategories,
+		preferenceWeights,
+		placeScoreAdjustments,
 		req.StartLat,
 		req.StartLon,
 		req.Radius,
@@ -117,6 +151,14 @@ func (uc *GenerateRouteUC) Execute(
 		return dto.GenerateRouteResponse{}, uc_errors.ErrSearchPlacesFailed
 	}
 
+	selectedPlaces = localImproveSelection(
+		selectedPlaces,
+		candidates,
+		matrixResp,
+		timeBudgetSeconds,
+		req.IncludeFood,
+	)
+
 	finalPlaces, routeResp, estimatedDuration, err := uc.buildRouteWithinBudget(
 		ctx,
 		req.StartLat,
@@ -127,6 +169,8 @@ func (uc *GenerateRouteUC) Execute(
 	if err != nil {
 		return dto.GenerateRouteResponse{}, err
 	}
+
+	uc.trackGeneratedPlaces(ctx, req.UserID, finalPlaces)
 
 	return dto.GenerateRouteResponse{
 		Places: finalPlaces,
@@ -149,6 +193,8 @@ type recommendationCandidate struct {
 func buildRecommendationCandidates(
 	places []dto.Place,
 	requestedCategories []string,
+	preferenceWeights map[string]float64,
+	placeScoreAdjustments map[string]float64,
 	startLat float64,
 	startLon float64,
 	radius int,
@@ -156,7 +202,6 @@ func buildRecommendationCandidates(
 ) []recommendationCandidate {
 	uniquePlaces := deduplicatePlaces(places)
 	normalizedRequested := normalizeRequestedRegularCategories(requestedCategories)
-	preferenceWeights := buildPreferenceWeights(normalizedRequested, includeFood)
 
 	result := make([]recommendationCandidate, 0, len(uniquePlaces))
 
@@ -190,6 +235,14 @@ func buildRecommendationCandidates(
 
 		baseScore := computeBaseScore(place, preferenceWeights, startLat, startLon, radius, isFood)
 
+		if place.PlaceID != "" {
+			baseScore += placeScoreAdjustments[place.PlaceID]
+		}
+
+		if baseScore < minCandidateScore {
+			baseScore = minCandidateScore
+		}
+
 		result = append(result, recommendationCandidate{
 			Place:        place,
 			BaseScore:    baseScore,
@@ -203,6 +256,237 @@ func buildRecommendationCandidates(
 	})
 
 	return result
+}
+
+func (uc *GenerateRouteUC) resolvePreferenceWeights(
+	ctx context.Context,
+	userID uuid.UUID,
+	explicitCategories []string,
+	includeFood bool,
+) (map[string]float64, []string) {
+	storedWeights := make(map[string]float64)
+
+	if uc.preferencesRepo != nil && userID != uuid.Nil {
+		if items, err := uc.preferencesRepo.GetByUserID(ctx, userID); err == nil {
+			for _, item := range items {
+				storedWeights[item.Category] = item.Weight
+			}
+		}
+	}
+
+	weights := buildPreferenceWeights(nil, includeFood)
+
+	for category, weight := range storedWeights {
+		weights[category] = weight
+	}
+
+	if len(explicitCategories) > 0 {
+		requested := normalizeRequestedRegularCategories(explicitCategories)
+		for _, category := range requested {
+			weights[category] = 1.0
+		}
+		if includeFood {
+			weights["catering.cafe"] = maxFloat(weights["catering.cafe"], 0.45)
+		}
+		return weights, requested
+	}
+
+	requested := deriveRequestedCategoriesFromWeights(weights)
+	if len(requested) == 0 {
+		requested = []string{"tourism.sights", "leisure.park"}
+	}
+
+	return weights, requested
+}
+
+func deriveRequestedCategoriesFromWeights(weights map[string]float64) []string {
+	type pair struct {
+		Category string
+		Weight   float64
+	}
+
+	items := make([]pair, 0, len(weights))
+	for category, weight := range weights {
+		if hasCategoryPrefix(category, "catering.") {
+			continue
+		}
+		items = append(items, pair{
+			Category: category,
+			Weight:   weight,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Weight == items[j].Weight {
+			return items[i].Category < items[j].Category
+		}
+		return items[i].Weight > items[j].Weight
+	})
+
+	result := make([]string, 0, 3)
+	for _, item := range items {
+		if item.Weight < 0.55 {
+			continue
+		}
+		result = append(result, item.Category)
+		if len(result) >= 3 {
+			break
+		}
+	}
+
+	return result
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+type placeHistoryStats struct {
+	GeneratedCount int
+	ViewedCount    int
+	OpenedCount    int
+	SavedCount     int
+	CompletedCount int
+}
+
+func (uc *GenerateRouteUC) resolvePlaceScoreAdjustments(
+	ctx context.Context,
+	userID uuid.UUID,
+) map[string]float64 {
+	if uc.userEventRepo == nil || userID == uuid.Nil {
+		return map[string]float64{}
+	}
+
+	events, err := uc.userEventRepo.GetRecentByUserID(ctx, userID, recentUserEventsLimit)
+	if err != nil {
+		return map[string]float64{}
+	}
+
+	return buildPlaceScoreAdjustments(events)
+}
+
+func buildPlaceScoreAdjustments(events []entity.UserEvent) map[string]float64 {
+	statsByPlaceID := make(map[string]*placeHistoryStats)
+
+	for _, event := range events {
+		if event.PlaceID == nil {
+			continue
+		}
+
+		placeID := strings.TrimSpace(*event.PlaceID)
+		if placeID == "" {
+			continue
+		}
+
+		stats, exists := statsByPlaceID[placeID]
+		if !exists {
+			stats = &placeHistoryStats{}
+			statsByPlaceID[placeID] = stats
+		}
+
+		switch event.EventType {
+		case entity.UserEventRouteGenerated:
+			stats.GeneratedCount++
+		case entity.UserEventPlaceViewed:
+			stats.ViewedCount++
+		case entity.UserEventRouteOpened:
+			stats.OpenedCount++
+		case entity.UserEventRouteSaved:
+			stats.SavedCount++
+		case entity.UserEventRouteCompleted:
+			stats.CompletedCount++
+		}
+	}
+
+	adjustments := make(map[string]float64, len(statsByPlaceID))
+
+	for placeID, stats := range statsByPlaceID {
+		bonus := float64(stats.ViewedCount)*placeViewedBonus +
+			float64(stats.OpenedCount)*routeOpenedBonus +
+			float64(stats.SavedCount)*routeSavedBonus
+
+		if bonus > maxPlaceBonus {
+			bonus = maxPlaceBonus
+		}
+
+		penalty := float64(stats.GeneratedCount)*routeGeneratedPlacePenalty +
+			float64(stats.CompletedCount)*routeCompletedPlacePenalty
+
+		if penalty > maxPlacePenalty {
+			penalty = maxPlacePenalty
+		}
+
+		adjustments[placeID] = bonus - penalty
+	}
+
+	return adjustments
+}
+
+func (uc *GenerateRouteUC) trackGeneratedPlaces(
+	ctx context.Context,
+	userID uuid.UUID,
+	places []dto.Place,
+) {
+	if uc.userEventRepo == nil || userID == uuid.Nil {
+		return
+	}
+
+	now := time.Now().UTC()
+
+	for _, place := range places {
+		placeID := strings.TrimSpace(place.PlaceID)
+		if placeID == "" {
+			continue
+		}
+
+		category := eventCategoryFromPlace(place)
+		var categoryPtr *string
+		if category != "" {
+			categoryPtr = &category
+		}
+
+		placeIDCopy := placeID
+
+		_ = uc.userEventRepo.Create(ctx, &entity.UserEvent{
+			ID:        uuid.New(),
+			UserID:    userID,
+			EventType: entity.UserEventRouteGenerated,
+			RouteID:   nil,
+			PlaceID:   &placeIDCopy,
+			Category:  categoryPtr,
+			CreatedAt: now,
+		})
+	}
+}
+
+func eventCategoryFromPlace(place dto.Place) string {
+	if hasFoodCategory(place.Categories) {
+		return "catering.cafe"
+	}
+
+	for _, category := range place.Categories {
+		if hasCategoryPrefix(category, "tourism.sights") {
+			return "tourism.sights"
+		}
+		if hasCategoryPrefix(category, "leisure.park") {
+			return "leisure.park"
+		}
+		if hasCategoryPrefix(category, "entertainment.museum") {
+			return "entertainment.museum"
+		}
+	}
+
+	for _, category := range place.Categories {
+		category = strings.TrimSpace(category)
+		if category != "" {
+			return category
+		}
+	}
+
+	return ""
 }
 
 func buildPreferenceWeights(requestedCategories []string, includeFood bool) map[string]float64 {
@@ -407,6 +691,220 @@ func greedySelectPlaces(
 	}
 
 	return result
+}
+
+func localImproveSelection(
+	currentPlaces []dto.Place,
+	allCandidates []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+	timeBudgetSeconds float64,
+	includeFood bool,
+) []dto.Place {
+	currentCandidates, ok := mapPlacesToCandidates(currentPlaces, allCandidates)
+	if !ok || len(currentCandidates) == 0 {
+		return currentPlaces
+	}
+
+	bestSelection := cloneCandidates(currentCandidates)
+	bestObjective := selectionObjective(bestSelection, includeFood)
+
+	foodAvailable := false
+	for _, candidate := range allCandidates {
+		if candidate.IsFood {
+			foodAvailable = true
+			break
+		}
+	}
+
+	for selectedIdx := range currentCandidates {
+		currentKeySet := buildCandidateKeySet(currentCandidates)
+		delete(currentKeySet, candidateKey(currentCandidates[selectedIdx]))
+
+		for _, candidate := range allCandidates {
+			key := candidateKey(candidate)
+			if _, exists := currentKeySet[key]; exists {
+				continue
+			}
+
+			tentative := cloneCandidates(currentCandidates)
+			tentative[selectedIdx] = candidate
+
+			if hasSelectionNearDuplicates(tentative) {
+				continue
+			}
+
+			if !selectionSatisfiesConstraints(tentative) {
+				continue
+			}
+
+			approxDuration := approximateSelectionDuration(tentative, matrix)
+			if approxDuration > timeBudgetSeconds {
+				continue
+			}
+
+			objective := selectionObjective(tentative, includeFood)
+			if includeFood && foodAvailable && !selectionHasFood(bestSelection) && selectionHasFood(tentative) {
+				objective += 0.20
+			}
+
+			if objective > bestObjective+0.05 {
+				bestSelection = tentative
+				bestObjective = objective
+			}
+		}
+	}
+
+	return candidatesToPlaces(bestSelection)
+}
+
+func mapPlacesToCandidates(
+	places []dto.Place,
+	candidates []recommendationCandidate,
+) ([]recommendationCandidate, bool) {
+	index := make(map[string]recommendationCandidate, len(candidates))
+	for _, candidate := range candidates {
+		index[candidateKey(candidate)] = candidate
+	}
+
+	result := make([]recommendationCandidate, 0, len(places))
+	for _, place := range places {
+		candidate, exists := index[candidateKeyFromPlace(place)]
+		if !exists {
+			return nil, false
+		}
+		result = append(result, candidate)
+	}
+
+	return result, true
+}
+
+func candidatesToPlaces(candidates []recommendationCandidate) []dto.Place {
+	result := make([]dto.Place, 0, len(candidates))
+	for _, candidate := range candidates {
+		result = append(result, candidate.Place)
+	}
+	return result
+}
+
+func cloneCandidates(src []recommendationCandidate) []recommendationCandidate {
+	dst := make([]recommendationCandidate, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func buildCandidateKeySet(candidates []recommendationCandidate) map[string]struct{} {
+	result := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		result[candidateKey(candidate)] = struct{}{}
+	}
+	return result
+}
+
+func candidateKey(candidate recommendationCandidate) string {
+	return candidateKeyFromPlace(candidate.Place)
+}
+
+func candidateKeyFromPlace(place dto.Place) string {
+	if place.PlaceID != "" {
+		return place.PlaceID
+	}
+	return strings.TrimSpace(place.Name) + "|" + strings.TrimSpace(place.Address)
+}
+
+func selectionSatisfiesConstraints(selection []recommendationCandidate) bool {
+	categoryCounts := make(map[string]int)
+	foodCount := 0
+
+	for _, candidate := range selection {
+		if candidate.IsFood {
+			foodCount++
+			if foodCount > 1 {
+				return false
+			}
+			continue
+		}
+
+		categoryCounts[candidate.PrimaryClass]++
+		if categoryCounts[candidate.PrimaryClass] > 2 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func selectionHasFood(selection []recommendationCandidate) bool {
+	for _, candidate := range selection {
+		if candidate.IsFood {
+			return true
+		}
+	}
+	return false
+}
+
+func hasSelectionNearDuplicates(selection []recommendationCandidate) bool {
+	for i := 0; i < len(selection); i++ {
+		for j := i + 1; j < len(selection); j++ {
+			if selection[i].PrimaryClass != selection[j].PrimaryClass {
+				continue
+			}
+			if isTooSimilarToSelected(selection[i], []recommendationCandidate{selection[j]}) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func approximateSelectionDuration(
+	selection []recommendationCandidate,
+	matrix *entity.RouteMatrix,
+) float64 {
+	total := 0.0
+	built := make([]recommendationCandidate, 0, len(selection))
+
+	for _, candidate := range selection {
+		added := estimateAddedTime(candidate, built, matrix)
+		if added <= 0 {
+			return math.MaxFloat64
+		}
+		total += added
+		built = append(built, candidate)
+	}
+
+	return total
+}
+
+func selectionObjective(
+	selection []recommendationCandidate,
+	includeFood bool,
+) float64 {
+	total := 0.0
+	categoryCounts := make(map[string]int)
+	uniqueClasses := make(map[string]struct{})
+
+	for _, candidate := range selection {
+		total += candidate.BaseScore
+		categoryCounts[candidate.PrimaryClass]++
+		uniqueClasses[candidate.PrimaryClass] = struct{}{}
+	}
+
+	for className, count := range categoryCounts {
+		if className == "food" {
+			continue
+		}
+		if count > 1 {
+			total -= 0.20 * float64(count-1)
+		}
+	}
+
+	total += 0.10 * float64(len(uniqueClasses))
+
+	if includeFood && selectionHasFood(selection) {
+		total += 0.10
+	}
+
+	return total
 }
 
 func estimateAddedTime(

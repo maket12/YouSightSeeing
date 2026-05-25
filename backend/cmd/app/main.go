@@ -61,11 +61,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	txManager := adapterdb.NewTransactionManager(db)
+
 	// ======================
 	// 4. Repositories
 	// ======================
 	usersRepo := adapterdb.NewUserRepository(db)
 	rTokensRepo := adapterdb.NewRefreshTokensRepository(db)
+	userPreferencesRepo := adapterdb.NewUserCategoryPreferencesRepository(db)
+	userEventRepo := adapterdb.NewUserEventRepository(db)
 	googleVerfRepo := adaptergv.NewOAuthVerifier(cfg.GoogleClientID)
 	tokensGeneratorRepo := adaptertg.NewTokensGenerator(
 		cfg.AccessSecret,
@@ -76,6 +80,8 @@ func main() {
 	routeCalculator := adapterors.NewRouteCalculator(cfg.ORSApiKey)
 	routeMatrixCalculator := adapterors.NewRouteMatrixCalculator(cfg.ORSApiKey)
 	placesService := adaptergeo.NewPlacesService(cfg.GeopifyAPIKey)
+	routeRepo := adapterdb.NewRouteRepository(db)
+	routePointRepo := adapterdb.NewRoutePointRepository(db)
 
 	// ======================
 	// 5. Usecases
@@ -94,9 +100,30 @@ func main() {
 	getUserUC := usecase.NewGetUserUC(usersRepo)
 	updateUserUC := usecase.NewUpdateUserUC(usersRepo)
 	updateUserPicUC := usecase.NewUpdateUserPictureUC(usersRepo)
+	getUserPreferencesUC := usecase.NewGetUserPreferencesUC(userPreferencesRepo)
+	updateUserPreferencesUC := usecase.NewUpdateUserPreferencesUC(userPreferencesRepo)
 	calculateRouteUC := usecase.NewCalculateRouteUC(routeCalculator)
 	searchPlacesUC := usecase.NewSearchPlacesUC(placesService)
-	generateRouteUC := usecase.NewGenerateRouteUC(searchPlacesUC, calculateRouteUC, routeMatrixCalculator)
+	generateRouteUC := usecase.NewGenerateRouteUC(
+		searchPlacesUC,
+		calculateRouteUC,
+		routeMatrixCalculator,
+		userPreferencesRepo,
+		userEventRepo,
+	)
+	updatePreferenceWeightsUC := usecase.NewUpdatePreferenceWeightsUC(userPreferencesRepo)
+	trackUserEventUC := usecase.NewTrackUserEventUCWithPreferenceUpdater(
+		userEventRepo,
+		updatePreferenceWeightsUC,
+	)
+	createRouteUC := usecase.NewCreateRouteUC(
+		txManager,
+		routeRepo,
+		routePointRepo,
+		trackUserEventUC,
+	)
+	getRouteUC := usecase.NewGetRouteUC(routeRepo, routePointRepo)
+	getRouteListUC := usecase.NewGetRouteListUC(routeRepo, routePointRepo)
 
 	// ======================
 	// 6. Handlers (REST)
@@ -106,11 +133,20 @@ func main() {
 		refreshTokenUC, logoutUC,
 	)
 	userHandler := adapterhttp.NewUserHandler(
-		logger, getUserUC,
-		updateUserUC, updateUserPicUC,
+		logger,
+		getUserUC,
+		updateUserUC,
+		updateUserPicUC,
+		getUserPreferencesUC,
+		updateUserPreferencesUC,
 	)
-	routeHandler := adapterhttp.NewRouteHandler(logger, calculateRouteUC, generateRouteUC)
+	routeHandler := adapterhttp.NewRouteHandler(
+		logger, calculateRouteUC,
+		generateRouteUC, createRouteUC,
+		getRouteUC, getRouteListUC,
+	)
 	placesHandler := adapterhttp.NewPlacesHandler(logger, searchPlacesUC)
+	eventHandler := adapterhttp.NewEventHandler(logger, trackUserEventUC)
 
 	// ======================
 	// 7. Router
@@ -121,6 +157,7 @@ func main() {
 		userHandler,
 		routeHandler,
 		placesHandler,
+		eventHandler,
 	).InitRoutes()
 
 	// ======================

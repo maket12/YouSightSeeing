@@ -63,3 +63,39 @@ func MapGoogleClaimsIntoUser(claims *entity.GoogleClaims) *entity.User {
 		UpdatedAt:     &now,
 	}
 }
+
+func MapCreateRouteToEntities(req dto.CreateRouteRequest) (*entity.Route, []*entity.RoutePoint) {
+	route := &entity.Route{
+		ID:             uuid.New(),
+		UserID:         req.UserID,
+		Title:          req.Title,
+		StartLatitude:  req.StartLatitude,
+		StartLongitude: req.StartLongitude,
+		Distance:       req.Distance,
+		Duration:       req.Duration,
+		Categories:     req.Categories,
+		MaxPlaces:      req.MaxPlaces,
+		IncludeFood:    req.IncludeFood,
+		IsPublic:       req.IsPublic,
+		ShareCode:      req.ShareCode,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Time{}.UTC(),
+	}
+
+	routePoints := make([]*entity.RoutePoint, len(req.Points))
+	for i, point := range req.Points {
+		routePoints[i] = &entity.RoutePoint{
+			ID:         uuid.New(),
+			RouteID:    route.ID,
+			Position:   point.Position,
+			PlaceID:    point.PlaceID,
+			Name:       point.Name,
+			Address:    point.Address,
+			Categories: point.Categories,
+			Latitude:   point.Latitude,
+			Longitude:  point.Longitude,
+		}
+	}
+
+	return route, routePoints
+}

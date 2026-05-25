@@ -27,6 +27,12 @@ var (
 	ExpiredRefreshTokenError  = errors.New("expired refresh token")
 	RevokedRefreshTokenError  = errors.New("refresh token has already been revoked")
 
+	CreateRouteError      = errors.New("failed to create route using db")
+	GetRouteError         = errors.New("failed to get route using db")
+	GetRouteListError     = errors.New("failed to get a list of routes using db")
+	CreateRoutePointError = errors.New("failed to create route point using db")
+	GetRoutePointsError   = errors.New("failed to get route points using db")
+
 	GenerateAccessTokenError  = errors.New("failed to generate new access token")
 	GenerateRefreshTokenError = errors.New("failed to generate new refresh token")
 
@@ -37,4 +43,8 @@ var (
 	ErrSearchPlacesFailed  = errors.New("failed to search places")
 	ErrInvalidSearchRadius = errors.New("search radius must be positive")
 	ErrInvalidCoordinates  = errors.New("invalid coordinates")
+
+	ErrEmptyPreferenceCategory = errors.New("preference category is required")
+	ErrInvalidPreferenceWeight = errors.New("preference weight must be between 0 and 1")
+	ErrInvalidUserEventType    = errors.New("invalid user event type")
 )

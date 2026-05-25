@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type RouteRepository struct {
@@ -16,32 +17,56 @@ type RouteRepository struct {
 }
 
 func NewRouteRepository(db *sqlx.DB) *RouteRepository {
-	return &RouteRepository{
-		db: db,
-	}
+	return &RouteRepository{db: db}
 }
 
-// Create — Создание нового маршрута
 func (r *RouteRepository) Create(ctx context.Context, route *entity.Route) error {
-	query := `INSERT INTO routes (
-                 id, user_id, title, start_latitude, start_longitude, 
-                 distance, duration, categories, max_places, 
-                 include_food, is_public, share_code, created_at, updated_at
-            ) VALUES (
-                :id, :user_id, :title, :start_latitude, :start_longitude,
-                :distance, :duration, :categories, :max_places,
-                :include_food, :is_public, :share_code, :created_at, :updated_at
-            );`
+	query := `
+		INSERT INTO routes (
+			id,
+			user_id,
+			title,
+			start_latitude,
+			start_longitude,
+			distance,
+			duration,
+			categories,
+			max_places,
+			include_food,
+			is_public,
+			share_code,
+			created_at,
+			updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	`
 
-	if _, err := r.db.NamedExecContext(ctx, query, route); err != nil {
+	_, err := executor(ctx, r.db).ExecContext(
+		ctx,
+		query,
+		route.ID,
+		route.UserID,
+		route.Title,
+		route.StartLatitude,
+		route.StartLongitude,
+		route.Distance,
+		route.Duration,
+		pq.Array(route.Categories),
+		route.MaxPlaces,
+		route.IncludeFood,
+		route.IsPublic,
+		route.ShareCode,
+		route.CreatedAt,
+		route.UpdatedAt,
+	)
+	if err != nil {
 		return fmt.Errorf("failed to create route: %w", err)
 	}
 
 	return nil
 }
 
-// GetByID — Получение одного маршрута по ID
-func (r *RouteRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Route, error) {
+func (r *RouteRepository) Get(ctx context.Context, id uuid.UUID) (*entity.Route, error) {
 	query := `SELECT * FROM routes WHERE id = $1`
 
 	var route entity.Route
@@ -55,7 +80,6 @@ func (r *RouteRepository) GetByID(ctx context.Context, id uuid.UUID) (*entity.Ro
 	return &route, nil
 }
 
-// Update — Обновление данных маршрута
 func (r *RouteRepository) Update(ctx context.Context, route *entity.Route) error {
 	query := `UPDATE routes
             SET
@@ -81,7 +105,6 @@ func (r *RouteRepository) Update(ctx context.Context, route *entity.Route) error
 	return nil
 }
 
-// Delete — Удаление маршрута
 func (r *RouteRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM routes WHERE id = $1`
 
@@ -101,7 +124,6 @@ func (r *RouteRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// GetListByUserID — Получение списка маршрутов конкретного пользователя (L в CRUDL)
 func (r *RouteRepository) GetListByUserID(ctx context.Context, userID uuid.UUID, limit, offset int) ([]entity.Route, error) {
 	query := `SELECT * FROM routes 
             WHERE user_id = $1 
@@ -116,7 +138,6 @@ func (r *RouteRepository) GetListByUserID(ctx context.Context, userID uuid.UUID,
 	return routes, nil
 }
 
-// GetByShareCode — Дополнительный метод для публичных ссылок
 func (r *RouteRepository) GetByShareCode(ctx context.Context, code string) (*entity.Route, error) {
 	query := `SELECT * FROM routes WHERE share_code = $1 AND is_public = TRUE`
 
