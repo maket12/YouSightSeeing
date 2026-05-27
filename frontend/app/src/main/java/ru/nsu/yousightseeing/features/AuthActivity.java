@@ -84,6 +84,7 @@ public class AuthActivity extends AppCompatActivity {
                                     public void onSuccess(String access, String refresh) {
                                         runOnUiThread(() -> {
                                             saveTokensFromBackend(access, refresh);
+                                            saveGoogleProfile(account);
                                             Toast.makeText(AuthActivity.this, "Успешный вход", Toast.LENGTH_SHORT).show();
                                             navigateToMain();
                                         });
@@ -143,8 +144,56 @@ public class AuthActivity extends AppCompatActivity {
                 .getString("email", null);
     }
 
+    public static void saveTokens(String accessToken, String refreshToken) {
+        if (appContext == null) return;
+
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit()
+                .putString("access_token", accessToken);
+
+        if (refreshToken != null && !refreshToken.isEmpty()) {
+            editor.putString("refresh_token", refreshToken);
+        }
+
+        editor.apply();
+    }
+
+    public static void clearTokens() {
+        if (appContext == null) return;
+
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs.edit()
+                .remove("access_token")
+                .remove("refresh_token")
+                .apply();
+    }
+
     private void navigateToMain() {
-        startActivity(new Intent(this, SplashActivity.class));
+        startActivity(new Intent(this, PreferencesActivity.class));
         finish();
+    }
+
+    public static String getUserName() {
+        if (appContext == null) return null;
+        return appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("google_name", null);
+    }
+
+    public static String getUserPhoto() {
+        if (appContext == null) return null;
+        return appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("google_photo", null);
+    }
+
+    private void saveGoogleProfile(GoogleSignInAccount account) {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs.edit()
+                .putString("email", account.getEmail())
+                .putString("google_name", account.getDisplayName())
+                .putString(
+                        "google_photo",
+                        account.getPhotoUrl() != null ? account.getPhotoUrl().toString() : ""
+                )
+                .apply();
     }
 }

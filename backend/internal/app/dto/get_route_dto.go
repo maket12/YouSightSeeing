@@ -8,6 +8,7 @@ import (
 
 type GetRouteRequest struct {
 	RouteID uuid.UUID `json:"route_id"`
+	UserID  uuid.UUID `json:"-"`
 }
 
 type RoutePointResponse struct {

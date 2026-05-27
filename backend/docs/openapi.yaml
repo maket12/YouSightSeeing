@@ -1,18 +1,33 @@
 openapi: 3.0.3
 info:
   title: YouSightseeing API
-  description: API для туристического приложения (поиск мест, построение маршрутов, профиль)
-  version: "1.1.0"
+  description: |
+    API для туристического приложения YouSightSeeing.
+
+    Сервис поддерживает авторизацию через Google, работу с профилем пользователя,
+    поиск точек интереса, построение маршрутов, генерацию рекомендованных маршрутов,
+    сохранение маршрутов и обновление пользовательских предпочтений.
+  version: "1.2.0"
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный backend
+  - url: http://localhost:8081
+    description: Локальный backend при пробросе Docker-порта
 
 tags:
   - name: Auth
-    description: Авторизация
+    description: Авторизация и управление токенами
   - name: Users
-    description: Информация о пользователе
+    description: Профиль пользователя и его предпочтения
   - name: Routes
-    description: Построение маршрутов
+    description: Расчёт, генерация, сохранение и получение маршрутов
   - name: Places
     description: Поиск точек интереса через Geoapify
+  - name: Events
+    description: События пользователя для системы рекомендаций
+  - name: Debug
+    description: Тестовые ручки для локальной проверки без JWT. Не предназначены для production
 
 components:
   securitySchemes:
@@ -20,6 +35,50 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  parameters:
+    RouteIdPath:
+      name: id
+      in: path
+      required: true
+      description: ID сохранённого маршрута
+      schema:
+        type: string
+        format: uuid
+      example: "b18c376c-31b6-4bb1-8a2b-38a84c603d21"
+
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      description: Максимальное количество элементов. По умолчанию backend использует 20, максимум 100
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+
+    OffsetQuery:
+      name: offset
+      in: query
+      required: false
+      description: Смещение для пагинации. По умолчанию 0
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+
+    TestUserIdHeader:
+      name: X-Test-User-ID
+      in: header
+      required: true
+      description: Тестовый ID пользователя для debug-ручек
+      schema:
+        type: string
+        format: uuid
+      example: "11111111-1111-1111-1111-111111111111"
 
   schemas:
     ErrorResponse:
@@ -29,6 +88,7 @@ components:
         error:
           type: string
           description: Текст ошибки
+          example: invalid json
 
     User:
       type: object
@@ -46,34 +106,41 @@ components:
           example: "kirpich@example.com"
         full_name:
           type: string
+          nullable: true
           example: "Kirill Kirpichov"
         picture:
           type: string
           format: uri
+          nullable: true
           example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
         first_name:
           type: string
+          nullable: true
           example: "Kirill"
         last_name:
           type: string
+          nullable: true
           example: "Kirpichov"
         email_verified:
           type: boolean
           example: true
         google_domain:
           type: string
+          nullable: true
           example: "example.com"
         locale:
           type: string
+          nullable: true
           example: "ru"
         created_at:
           type: string
           format: date-time
-          example: "2025-12-08T18:44:00Z"
+          example: "2026-05-21T10:00:00Z"
         updated_at:
           type: string
           format: date-time
-          example: "2025-12-09T10:00:00Z"
+          nullable: true
+          example: "2026-05-21T11:00:00Z"
 
     GetUserResponse:
       type: object
@@ -88,19 +155,20 @@ components:
       properties:
         google_token:
           type: string
-          description: Токен, полученный от Google Sign-In на клиенте
-          example: "eyJhbGciOiJSUzI1NiIsImtpZCI6IjNmZThhMDEyNzYyNjU5M2Q5YzRmZWU2NjE3ZjU3Z..."
+          description: Google ID token, полученный на клиенте
+          example: "eyJhbGciOiJSUzI1NiIsImtpZCI6..."
 
     GoogleAuthResponse:
       type: object
+      required: [access_token, user]
       properties:
         access_token:
           type: string
-          description: JWT токен доступа
+          description: JWT access token
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         refresh_token:
           type: string
-          description: Refresh токен для обновления access_token
+          description: Refresh token. Может отсутствовать, если backend не выпустил новый refresh token
           example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
         user:
           $ref: '#/components/schemas/User'
@@ -111,19 +179,17 @@ components:
       properties:
         refresh_token:
           type: string
-          description: Действующий refresh токен пользователя
           example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
 
     RefreshTokenResponse:
       type: object
+      required: [access_token, user]
       properties:
         access_token:
           type: string
-          description: JWT токен доступа
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         refresh_token:
           type: string
-          description: Новый refresh токен
           example: "8a6e0804-24d6-4470-bf21-23588921d7b3"
         user:
           $ref: '#/components/schemas/User'
@@ -134,11 +200,11 @@ components:
       properties:
         refresh_token:
           type: string
-          description: Действующий refresh токен пользователя
           example: "d9b2d63d-a233-4323-83d0-3b6c2d1c5a1d"
 
     LogoutResponse:
       type: object
+      required: [user_id, logout]
       properties:
         user_id:
           type: string
@@ -155,28 +221,33 @@ components:
         email:
           type: string
           format: email
-          example: "shishi@example.com"
+          nullable: true
+          example: "new-email@example.com"
         full_name:
           type: string
-          example: "Vladimir Ziabkin"
+          nullable: true
+          example: "Kirill Kirpichov"
         picture:
           type: string
           format: uri
-          example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
+          nullable: true
+          example: "https://example.com/avatar.png"
         first_name:
           type: string
-          example: "Vladimir"
+          nullable: true
+          example: "Kirill"
         last_name:
           type: string
-          example: "Ziabkin"
+          nullable: true
+          example: "Kirpichov"
 
     UpdateUserResponse:
       type: object
+      required: [id, updated, user]
       properties:
         id:
           type: string
           format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
         updated:
           type: boolean
           example: true
@@ -189,17 +260,16 @@ components:
       properties:
         picture:
           type: string
-          format: uri
-          description: Передайте пустую строку, чтобы удалить изображение
-          example: "https://lh3.googleusercontent.com/a-/AOh14Hg..."
+          description: URL новой фотографии. Пустая строка может использоваться для удаления изображения
+          example: "https://example.com/avatar.png"
 
     UpdateUserPictureResponse:
       type: object
+      required: [id, updated, user]
       properties:
         id:
           type: string
           format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
         updated:
           type: boolean
           example: true
@@ -210,54 +280,57 @@ components:
       type: array
       minItems: 2
       maxItems: 2
+      description: Координата в формате [lon, lat]
       items:
         type: number
         format: double
-      description: Координата в формате [lon, lat]
-      example: [37.6176, 55.7558]
+      example: [83.09163, 54.8428]
 
-    RouteRequest:
+    CalculateRouteRequest:
       type: object
       required: [coordinates]
       properties:
         coordinates:
           type: array
           minItems: 2
+          description: Точки маршрута в формате [lon, lat]
           items:
             $ref: '#/components/schemas/Coordinate'
-          description: Массив точек маршрута в формате [lon, lat]
+          example:
+            - [83.09163, 54.8428]
+            - [83.0930095, 54.84314789937449]
         profile:
           type: string
-          description: Профиль маршрута. Сейчас в backend фактически используется foot-walking
+          description: Профиль маршрута. Backend строит пешеходный маршрут
           example: foot-walking
         preference:
           type: string
-          description: Предпочтение маршрута. Поле зарезервировано под дальнейшее расширение
+          description: Зарезервировано под расширение
           example: recommended
         optimize_order:
           type: boolean
-          description: Оптимизировать порядок точек перед отправкой в ORS
+          description: Оптимизировать порядок точек перед расчётом маршрута
           example: true
 
-    RouteResponse:
+    RouteGeometryResponse:
       type: object
       required: [points, distance, duration]
       properties:
         points:
           type: array
-          description: Геометрия маршрута в формате [lon, lat]
+          description: Геометрия линии маршрута в формате [lon, lat]
           items:
             $ref: '#/components/schemas/Coordinate'
         distance:
           type: number
           format: double
           description: Длина маршрута в метрах
-          example: 3240.5
+          example: 981.2
         duration:
           type: number
           format: double
-          description: Оценочное время маршрута в секундах
-          example: 2715.3
+          description: Время маршрута в секундах
+          example: 7906.5
 
     SearchPlacesRequest:
       type: object
@@ -269,34 +342,30 @@ components:
           minimum: -90
           maximum: 90
           description: Широта центра поиска
-          example: 55.7558
+          example: 54.8428
         lon:
           type: number
           format: double
           minimum: -180
           maximum: 180
           description: Долгота центра поиска
-          example: 37.6176
+          example: 83.09163
         radius:
           type: integer
           minimum: 1
           description: Радиус поиска в метрах
-          example: 1500
+          example: 2500
         categories:
           type: array
-          description: |
-            Категории Geoapify. Если поле передано пустым, backend подставляет
-            значения по умолчанию: tourism.sights и catering.cafe.
+          description: Категории Geoapify
           items:
             type: string
-          example:
-            - tourism.sights
-            - catering.cafe
+          example: [tourism.sights, leisure.park]
         limit:
           type: integer
           minimum: 1
-          description: Максимальное количество возвращаемых точек. По умолчанию backend использует 20
-          example: 10
+          description: Максимальное количество мест
+          example: 20
 
     Place:
       type: object
@@ -304,26 +373,20 @@ components:
       properties:
         name:
           type: string
-          description: Имя точки для отображения
-          example: Saint Basil's Cathedral
+          example: "Earth evolution museum"
         address:
           type: string
-          description: Адрес одной строкой
-          example: Red Square, Moscow, Russia
+          example: "Pirogova street 1"
         categories:
           type: array
-          description: Категории, относящиеся к точке
           items:
             type: string
-          example:
-            - tourism.sights
-            - religion.church
+          example: [entertainment.museum]
         coordinates:
           $ref: '#/components/schemas/Coordinate'
         place_id:
           type: string
-          description: Уникальный идентификатор места во внешнем провайдере
-          example: 51f6f7d3a1f4e23f9b3b7c1a8e4b1234567890ab
+          example: "saved-museum-1"
 
     SearchPlacesResponse:
       type: object
@@ -334,13 +397,351 @@ components:
           items:
             $ref: '#/components/schemas/Place'
 
+    GenerateRouteRequest:
+      type: object
+      required: [start_lat, start_lon]
+      properties:
+        start_lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: Широта стартовой точки
+          example: 54.8428
+        start_lon:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: Долгота стартовой точки
+          example: 83.09163
+        categories:
+          type: array
+          description: |
+            Желаемые категории мест. Если список пустой, backend использует сохранённые предпочтения пользователя,
+            а при их отсутствии базовые категории tourism.sights и leisure.park.
+          items:
+            type: string
+          example: [tourism.sights, leisure.park]
+        radius:
+          type: integer
+          minimum: 1
+          description: Радиус поиска в метрах. Если не указан или меньше 1, используется 2000
+          example: 2500
+        max_places:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Максимальное количество мест в маршруте. Backend ограничивает значение максимумом 10
+          example: 5
+        duration_minutes:
+          type: integer
+          minimum: 1
+          description: Желаемая длительность маршрута в минутах. Если не указана, используется 180
+          example: 180
+        include_food:
+          type: boolean
+          description: Добавить в подбор кафе или место для еды. Backend допускает не больше одной food-точки
+          example: true
+
+    GenerateRouteResponse:
+      type: object
+      required: [places, route]
+      properties:
+        places:
+          type: array
+          description: Выбранные POI, вошедшие в рекомендованный маршрут
+          items:
+            $ref: '#/components/schemas/Place'
+        route:
+          $ref: '#/components/schemas/RouteGeometryResponse'
+
+    RoutePointRequest:
+      type: object
+      required: [position, name, address, categories, latitude, longitude]
+      properties:
+        position:
+          type: integer
+          minimum: 1
+          description: Порядок точки внутри маршрута
+          example: 1
+        place_id:
+          type: string
+          nullable: true
+          description: ID точки от внешнего провайдера
+          example: "saved-sight-1"
+        name:
+          type: string
+          example: "Belyaev monument"
+        address:
+          type: string
+          example: "Universitetsky Ave"
+        categories:
+          type: array
+          items:
+            type: string
+          example: [tourism.sights, tourism.sights.memorial]
+        latitude:
+          type: number
+          format: double
+          example: 54.84314789937449
+        longitude:
+          type: number
+          format: double
+          example: 83.0930095
+
+    RoutePointResponse:
+      allOf:
+        - $ref: '#/components/schemas/RoutePointRequest'
+
+    CreateRouteRequest:
+      type: object
+      required:
+        - title
+        - start_latitude
+        - start_longitude
+        - distance
+        - duration
+        - categories
+        - max_places
+        - include_food
+        - is_public
+        - points
+      properties:
+        title:
+          type: string
+          description: Название сохранённого маршрута. Если пустое, backend использует Saved route
+          example: "Recommendation saved route"
+        start_latitude:
+          type: number
+          format: double
+          example: 54.8428
+        start_longitude:
+          type: number
+          format: double
+          example: 83.09163
+        distance:
+          type: integer
+          format: int64
+          description: Длина маршрута в метрах
+          example: 981
+        duration:
+          type: integer
+          description: Длительность маршрута в секундах
+          example: 7906
+        categories:
+          type: array
+          items:
+            type: string
+          example: [tourism.sights, entertainment.museum]
+        max_places:
+          type: integer
+          example: 2
+        include_food:
+          type: boolean
+          example: false
+        is_public:
+          type: boolean
+          example: false
+        share_code:
+          type: string
+          nullable: true
+          description: Код для публичного доступа, если маршрут опубликован
+          example: null
+        points:
+          type: array
+          minItems: 1
+          description: Список POI маршрута. Геометрия линии маршрута сейчас не сохраняется отдельно
+          items:
+            $ref: '#/components/schemas/RoutePointRequest'
+
+    CreateRouteResponse:
+      type: object
+      required: [route_id]
+      properties:
+        route_id:
+          type: string
+          format: uuid
+          example: "b18c376c-31b6-4bb1-8a2b-38a84c603d21"
+
+    SavedRoute:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - start_latitude
+        - start_longitude
+        - distance
+        - duration
+        - categories
+        - max_places
+        - include_food
+        - is_public
+        - points
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "b18c376c-31b6-4bb1-8a2b-38a84c603d21"
+        user_id:
+          type: string
+          format: uuid
+          example: "11111111-1111-1111-1111-111111111111"
+        title:
+          type: string
+          example: "Recommendation saved route"
+        start_latitude:
+          type: number
+          format: double
+          example: 54.8428
+        start_longitude:
+          type: number
+          format: double
+          example: 83.09163
+        distance:
+          type: integer
+          format: int64
+          example: 981
+        duration:
+          type: integer
+          example: 7906
+        categories:
+          type: array
+          items:
+            type: string
+          example: [tourism.sights, entertainment.museum]
+        max_places:
+          type: integer
+          example: 2
+        include_food:
+          type: boolean
+          example: false
+        is_public:
+          type: boolean
+          example: false
+        share_code:
+          type: string
+          nullable: true
+          example: null
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/RoutePointResponse'
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-05-18T16:25:42Z"
+
+    GetRouteResponse:
+      type: object
+      required: [route]
+      properties:
+        route:
+          $ref: '#/components/schemas/SavedRoute'
+
+    GetRouteListResponse:
+      type: object
+      required: [routes]
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/SavedRoute'
+
+    CategoryPreference:
+      type: object
+      required: [category, weight]
+      properties:
+        category:
+          type: string
+          example: tourism.sights
+        weight:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          example: 0.56
+
+    GetUserPreferencesResponse:
+      type: object
+      required: [preferences]
+      properties:
+        preferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryPreference'
+
+    UpdateUserPreferencesRequest:
+      type: object
+      required: [preferences]
+      properties:
+        preferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryPreference'
+
+    UpdateUserPreferencesResponse:
+      type: object
+      required: [updated, preferences]
+      properties:
+        updated:
+          type: boolean
+          example: true
+        preferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryPreference'
+
+    UserEventType:
+      type: string
+      enum:
+        - route_generated
+        - route_saved
+        - route_opened
+        - route_completed
+        - place_viewed
+      example: route_saved
+
+    TrackUserEventRequest:
+      type: object
+      required: [event_type]
+      properties:
+        event_type:
+          $ref: '#/components/schemas/UserEventType'
+        route_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID маршрута, если событие связано с маршрутом
+          example: "b18c376c-31b6-4bb1-8a2b-38a84c603d21"
+        place_id:
+          type: string
+          nullable: true
+          description: ID точки, если событие связано с конкретным POI
+          example: "saved-museum-1"
+        category:
+          type: string
+          nullable: true
+          description: Категория, вес которой нужно обновить
+          example: entertainment.museum
+
+    TrackUserEventResponse:
+      type: object
+      required: [created]
+      properties:
+        created:
+          type: boolean
+          example: true
+
 paths:
   /auth/google:
     post:
       tags: [Auth]
       security: []
       summary: Вход через Google
-      description: Создает нового пользователя или авторизует существующего через Google ID Token
+      description: Создает нового пользователя или авторизует существующего через Google ID token
       operationId: authGoogle
       requestBody:
         required: true
@@ -356,41 +757,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/GoogleAuthResponse'
         '400':
-          description: Неверный формат запроса
+          description: Неверный запрос
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
-                missing_google_token:
-                  value: { error: "google_token is required" }
-        '401':
-          description: Токен Google невалиден
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                empty_sub:
-                  value: { error: "empty google sub" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                google_validation:
-                  value: { error: "failed to validate google token" }
 
   /auth/refresh:
     post:
       tags: [Auth]
       security: []
       summary: Обновление токенов
-      description: Получает новый access token по валидному refresh token
       operationId: authRefresh
       requestBody:
         required: true
@@ -411,49 +794,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
-                empty_refresh_token:
-                  value: { error: "empty refresh token" }
         '401':
-          description: Refresh токен истек или отозван
+          description: Refresh token истёк или отозван
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                expired:
-                  value: { error: "expired refresh token" }
-                revoked:
-                  value: { error: "refresh token has already been revoked" }
         '404':
-          description: Refresh токен не найден
+          description: Refresh token не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_found:
-                  value: { error: "refresh token not found" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                create:
-                  value: { error: "failed to create refresh token" }
-                revoke:
-                  value: { error: "failed to revoke refresh token" }
 
   /auth/logout:
     post:
       tags: [Auth]
       security: []
       summary: Выход из системы
-      description: Отзывает указанный refresh token, делая его невалидным
+      description: Отзывает refresh token
       operationId: authLogout
       requestBody:
         required: true
@@ -474,39 +839,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
-                empty_refresh_token:
-                  value: { error: "empty refresh token" }
         '404':
-          description: Refresh токен не найден
+          description: Refresh token не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_found:
-                  value: { error: "refresh token not found" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                revoke:
-                  value: { error: "failed to revoke refresh token" }
 
   /api/users/me:
     get:
       tags: [Users]
-      summary: Получить информацию о текущем пользователе
+      summary: Получить текущего пользователя
+      operationId: getMe
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: Информация о текущем пользователе
+          description: Информация о пользователе
           content:
             application/json:
               schema:
@@ -517,31 +872,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                auth:
-                  value: { error: "Authorization header required" }
         '404':
           description: Пользователь не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_found:
-                  value: { error: "user not found" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                get:
-                  value: { error: "failed to get user" }
-
     patch:
       tags: [Users]
-      summary: Обновить информацию о текущем пользователе
+      summary: Обновить текущего пользователя
+      operationId: updateMe
       security:
         - BearerAuth: []
       requestBody:
@@ -552,7 +898,7 @@ paths:
               $ref: '#/components/schemas/UpdateUserRequest'
       responses:
         '200':
-          description: Информация о текущем пользователе обновлена
+          description: Пользователь обновлён
           content:
             application/json:
               schema:
@@ -563,41 +909,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
         '401':
           description: Требуется авторизация
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                auth:
-                  value: { error: "Authorization header required" }
         '404':
           description: Пользователь не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_found:
-                  value: { error: "user not found" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                update:
-                  value: { error: "failed to update user" }
 
   /api/users/me/picture:
     put:
       tags: [Users]
       summary: Обновить фотографию текущего пользователя
+      operationId: updateMePicture
       security:
         - BearerAuth: []
       requestBody:
@@ -608,7 +943,7 @@ paths:
               $ref: '#/components/schemas/UpdateUserPictureRequest'
       responses:
         '200':
-          description: Фотография текущего пользователя обновлена
+          description: Фотография обновлена
           content:
             application/json:
               schema:
@@ -619,41 +954,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
         '401':
           description: Требуется авторизация
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                auth:
-                  value: { error: "Authorization header required" }
         '404':
           description: Пользователь не найден
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_found:
-                  value: { error: "user not found" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                update_picture:
-                  value: { error: "failed to update user's picture" }
 
-  /api/routes/calculate:
-    post:
-      tags: [Routes]
-      summary: Получить готовый маршрут
+  /api/users/preferences:
+    get:
+      tags: [Users]
+      summary: Получить веса категорий текущего пользователя
+      description: Возвращает сохранённые веса интересов пользователя для системы рекомендаций
+      operationId: getUserPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Список предпочтений
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetUserPreferencesResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Users]
+      summary: Обновить веса категорий текущего пользователя
+      operationId: updateUserPreferences
       security:
         - BearerAuth: []
       requestBody:
@@ -661,52 +1011,322 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RouteRequest'
+              $ref: '#/components/schemas/UpdateUserPreferencesRequest'
       responses:
         '200':
-          description: Информация о маршруте
+          description: Предпочтения обновлены
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RouteResponse'
+                $ref: '#/components/schemas/UpdateUserPreferencesResponse'
         '400':
-          description: Некорректный запрос
+          description: Некорректные веса или категории
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
-                invalid_route_points:
-                  value: { error: "invalid route points" }
         '401':
           description: Требуется авторизация
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                auth:
-                  value: { error: "Authorization header required" }
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                ors:
-                  value: { error: "failed to calculate route" }
+
+  /api/events:
+    post:
+      tags: [Events]
+      summary: Записать событие пользователя
+      description: |
+        Создаёт событие пользователя. Если у события передана категория, backend обновляет вес этой категории.
+        События route_saved также создаются автоматически при сохранении маршрута.
+      operationId: trackUserEvent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackUserEventRequest'
+            examples:
+              place_viewed:
+                value:
+                  event_type: place_viewed
+                  place_id: "saved-museum-1"
+                  category: entertainment.museum
+      responses:
+        '200':
+          description: Событие создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackUserEventResponse'
+        '400':
+          description: Некорректный тип события или данные
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/routes/calculate:
+    post:
+      tags: [Routes]
+      summary: Рассчитать пешеходный маршрут по координатам
+      operationId: calculateRoute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculateRouteRequest'
+      responses:
+        '200':
+          description: Геометрия, длина и длительность маршрута
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteGeometryResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка расчёта маршрута
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/routes/generate:
+    post:
+      tags: [Routes]
+      summary: Сгенерировать рекомендованный маршрут
+      description: |
+        Подбирает POI рядом со стартовой точкой, учитывает предпочтения пользователя,
+        историю событий, штрафы за повтор place_id, ограничение по времени и разнообразие категорий.
+        В ответе возвращаются выбранные места и рассчитанная линия маршрута.
+      operationId: generateRoute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRouteRequest'
+      responses:
+        '200':
+          description: Рекомендованный маршрут построен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateRouteResponse'
+        '400':
+          description: Некорректные координаты или параметры
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка поиска мест, матрицы или построения маршрута
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/routes:
+    post:
+      tags: [Routes]
+      summary: Сохранить маршрут
+      description: |
+        Сохраняет маршрут и его POI-точки. После сохранения backend создаёт события route_saved
+        по точкам маршрута, поэтому сохранение маршрута влияет на веса категорий и дальнейшие рекомендации.
+        Сейчас сохраняются точки маршрута, но не сохраняется отдельная геометрия линии маршрута.
+      operationId: createRoute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRouteRequest'
+      responses:
+        '201':
+          description: Маршрут сохранён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRouteResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка сохранения маршрута или точек маршрута
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Routes]
+      summary: Получить список сохранённых маршрутов текущего пользователя
+      operationId: getRouteList
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Список маршрутов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRouteListResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка получения списка маршрутов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/routes/create:
+    post:
+      tags: [Routes]
+      summary: Сохранить маршрут, совместимый alias
+      description: Полный аналог POST /api/routes. Оставлен для совместимости с фронтом
+      operationId: createRouteAlias
+      deprecated: true
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRouteRequest'
+      responses:
+        '201':
+          description: Маршрут сохранён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRouteResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка сохранения маршрута
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/routes/{id}:
+    get:
+      tags: [Routes]
+      summary: Получить сохранённый маршрут по ID
+      description: Возвращает маршрут и его точки, если маршрут принадлежит пользователю или является публичным
+      operationId: getRoute
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RouteIdPath'
+      responses:
+        '200':
+          description: Сохранённый маршрут
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRouteResponse'
+        '400':
+          description: Некорректный route id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Требуется авторизация
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Маршрут не найден или недоступен пользователю
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка получения маршрута или его точек
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/places/search:
     post:
       tags: [Places]
-      summary: Поиск точек интереса рядом с координатами
-      description: |
-        Выполняет поиск точек интереса через Geoapify по центру поиска,
-        радиусу и набору категорий. Эндпоинт требует авторизацию и
-        возвращает уже нормализованный список мест для клиента.
+      summary: Найти точки интереса рядом с координатами
+      operationId: searchPlaces
       security:
         - BearerAuth: []
       requestBody:
@@ -715,69 +1335,234 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SearchPlacesRequest'
-            examples:
-              sightseeing:
-                summary: Поиск достопримечательностей и кафе
-                value:
-                  lat: 55.7558
-                  lon: 37.6176
-                  radius: 1500
-                  categories:
-                    - tourism.sights
-                    - catering.cafe
-                  limit: 10
       responses:
         '200':
-          description: Список найденных точек интереса
+          description: Список найденных POI
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SearchPlacesResponse'
-              examples:
-                success:
-                  value:
-                    places:
-                      - name: Saint Basil's Cathedral
-                        address: Red Square, Moscow, Russia
-                        categories:
-                          - tourism.sights
-                          - religion.church
-                        coordinates: [37.6231, 55.7525]
-                        place_id: "51f6f7d3a1f4e23f9b3b7c1a8e4b1234567890ab"
-                      - name: Bosco Cafe
-                        address: Red Square, 3, Moscow, Russia
-                        categories:
-                          - catering.cafe
-                        coordinates: [37.6217, 55.7542]
-                        place_id: "51a9dd63c4ff99887766554433221100abcdef12"
         '400':
-          description: Некорректный запрос
+          description: Некорректные координаты или радиус
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalid_json:
-                  value: { error: "invalid json" }
-                invalid_coordinates:
-                  value: { error: "invalid coordinates" }
-                invalid_radius:
-                  value: { error: "invalid search radius" }
         '401':
           description: Требуется авторизация
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                auth:
-                  value: { error: "Authorization header required" }
         '500':
-          description: Внутренняя ошибка сервера или ошибка провайдера мест
+          description: Ошибка поиска мест
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                search_failed:
-                  value: { error: "failed to search places" }
+
+  /debug/events:
+    post:
+      tags: [Debug]
+      security: []
+      summary: Debug - записать событие пользователя без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackUserEventRequest'
+      responses:
+        '200':
+          description: Событие создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrackUserEventResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не передан X-Test-User-ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /debug/routes/generate:
+    post:
+      tags: [Debug]
+      security: []
+      summary: Debug - сгенерировать маршрут без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateRouteRequest'
+      responses:
+        '200':
+          description: Маршрут сгенерирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateRouteResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Ошибка генерации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /debug/routes:
+    post:
+      tags: [Debug]
+      security: []
+      summary: Debug - сохранить маршрут без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRouteRequest'
+      responses:
+        '201':
+          description: Маршрут сохранён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRouteResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не передан X-Test-User-ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Debug]
+      security: []
+      summary: Debug - получить список маршрутов без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/OffsetQuery'
+      responses:
+        '200':
+          description: Список маршрутов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRouteListResponse'
+        '401':
+          description: Не передан X-Test-User-ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /debug/routes/{id}:
+    get:
+      tags: [Debug]
+      security: []
+      summary: Debug - получить маршрут по ID без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+        - $ref: '#/components/parameters/RouteIdPath'
+      responses:
+        '200':
+          description: Сохранённый маршрут
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetRouteResponse'
+        '400':
+          description: Некорректный ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не передан X-Test-User-ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Маршрут не найден или недоступен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /debug/users/preferences:
+    get:
+      tags: [Debug]
+      security: []
+      summary: Debug - получить предпочтения пользователя без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+      responses:
+        '200':
+          description: Предпочтения пользователя
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetUserPreferencesResponse'
+        '401':
+          description: Не передан X-Test-User-ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Debug]
+      security: []
+      summary: Debug - обновить предпочтения пользователя без JWT
+      parameters:
+        - $ref: '#/components/parameters/TestUserIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserPreferencesRequest'
+      responses:
+        '200':
+          description: Предпочтения обновлены
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateUserPreferencesResponse'
+        '400':
+          description: Некорректный запрос
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Не передан X-Test-User-ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

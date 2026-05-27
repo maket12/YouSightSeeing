@@ -28,11 +28,6 @@
             </intent-filter>
         </activity>
 
-        <!-- 🔹 Логика навигации -->
-        <activity
-            android:name="ru.nsu.yousightseeing.features.SplashActivity"
-            android:exported="false" />
-
         <activity
             android:name="ru.nsu.yousightseeing.features.AuthActivity"
             android:exported="false" />
@@ -54,6 +49,13 @@
         <activity
             android:name="ru.nsu.yousightseeing.features.ProfileActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".features.route.RouteResultActivity"
+            android:exported="false"/>
+
+        <activity android:name=".features.route.RouteConfirmationActivity" />
+        <activity android:name=".features.route.RouteFinalActivity" />
 
     </application>
 

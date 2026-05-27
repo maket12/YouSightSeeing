@@ -12,7 +12,7 @@ var (
 	InvalidUserID              = errors.New("invalid user id")
 
 	CreateUserError        = errors.New("failed to create user")
-	GetUserError           = errors.New("failed to get user using db")
+	GetUserError           = errors.New("failed to get user")
 	UpdateUserError        = errors.New("failed to update user")
 	UpdateUserPictureError = errors.New("failed to update user's picture")
 

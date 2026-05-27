@@ -8,6 +8,7 @@ import (
 	"YouSightSeeing/backend/internal/domain/port/mocks"
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -77,4 +78,56 @@ func TestCalculateRouteUC(t *testing.T) {
 			repo.AssertExpectations(t)
 		})
 	}
+}
+
+func TestCalculateRouteUC_PreservesInputOrderWhenOptimizeOrderFalse(t *testing.T) {
+	repo := new(mocks.RouteCalculator)
+	uc := usecase.NewCalculateRouteUC(repo)
+
+	inputCoordinates := [][]float64{
+		{0, 0},
+		{100, 100},
+		{1, 1},
+	}
+
+	repo.On("CalculateRoute", mock.Anything, mock.MatchedBy(func(req entity.ORSRequest) bool {
+		return reflect.DeepEqual(req.Coordinates, inputCoordinates)
+	})).Return(&entity.ORSRoute{}, nil)
+
+	_, err := uc.Execute(context.Background(), dto.CalculateRouteRequest{
+		Coordinates:   inputCoordinates,
+		OptimizeOrder: false,
+	})
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
+}
+
+func TestCalculateRouteUC_OptimizesOrderWhenOptimizeOrderTrue(t *testing.T) {
+	repo := new(mocks.RouteCalculator)
+	uc := usecase.NewCalculateRouteUC(repo)
+
+	inputCoordinates := [][]float64{
+		{0, 0},
+		{100, 100},
+		{1, 1},
+	}
+
+	expectedCoordinates := [][]float64{
+		{0, 0},
+		{1, 1},
+		{100, 100},
+	}
+
+	repo.On("CalculateRoute", mock.Anything, mock.MatchedBy(func(req entity.ORSRequest) bool {
+		return reflect.DeepEqual(req.Coordinates, expectedCoordinates)
+	})).Return(&entity.ORSRoute{}, nil)
+
+	_, err := uc.Execute(context.Background(), dto.CalculateRouteRequest{
+		Coordinates:   inputCoordinates,
+		OptimizeOrder: true,
+	})
+
+	assert.NoError(t, err)
+	repo.AssertExpectations(t)
 }
