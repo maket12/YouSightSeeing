@@ -39,6 +39,10 @@ const (
 	minCandidateScore = 0.05
 )
 
+// Weight for crowd-derived place conversion (how strongly global conversion affects base score)
+const placeConversionWeight = 0.18
+
+
 type GenerateRouteUC struct {
 	searchPlacesUC   SearchPlacesUseCase
 	calculateUC      CalculateRouteUseCase
@@ -108,11 +112,43 @@ func (uc *GenerateRouteUC) Execute(
 		return dto.GenerateRouteResponse{}, err
 	}
 
+	// prepare global place conversion map (crowd signal)
+	placeConversionMap := make(map[string]float64)
+	if uc.userEventRepo != nil {
+		placeIDs := make([]string, 0, len(searchResp.Places))
+		seen := make(map[string]struct{})
+		for _, p := range searchResp.Places {
+			if p.PlaceID == "" {
+				continue
+			}
+			if _, ok := seen[p.PlaceID]; ok {
+				continue
+			}
+			seen[p.PlaceID] = struct{}{}
+			placeIDs = append(placeIDs, p.PlaceID)
+		}
+
+		if len(placeIDs) > 0 {
+			if statsMap, err := uc.userEventRepo.GetGlobalStatsByPlaceIDs(ctx, placeIDs); err == nil {
+				for _, pid := range placeIDs {
+					if s, ok := statsMap[pid]; ok {
+						// simple Laplace-style smoothing to avoid 1/1 artifacts
+						placeConversionMap[pid] = float64(s.SavedCount+1) / float64(s.GeneratedCount+2)
+					} else {
+						placeConversionMap[pid] = 0.0
+					}
+				}
+			}
+		}
+	}
+
 	candidates := buildRecommendationCandidates(
 		searchResp.Places,
 		requestedCategories,
 		preferenceWeights,
 		placeScoreAdjustments,
+		placeConversionMap,
+		placeConversionWeight,
 		req.StartLat,
 		req.StartLon,
 		req.Radius,
@@ -195,6 +231,8 @@ func buildRecommendationCandidates(
 	requestedCategories []string,
 	preferenceWeights map[string]float64,
 	placeScoreAdjustments map[string]float64,
+	placeConversion map[string]float64,
+	conversionWeight float64,
 	startLat float64,
 	startLon float64,
 	radius int,
@@ -233,10 +271,15 @@ func buildRecommendationCandidates(
 			continue
 		}
 
+
 		baseScore := computeBaseScore(place, preferenceWeights, startLat, startLon, radius, isFood)
 
 		if place.PlaceID != "" {
 			baseScore += placeScoreAdjustments[place.PlaceID]
+
+			if pc, ok := placeConversion[place.PlaceID]; ok && conversionWeight > 0 {
+				baseScore += conversionWeight * pc
+			}
 		}
 
 		if baseScore < minCandidateScore {
