@@ -18,6 +18,15 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+<<<<<<< HEAD
+
+	trmpgx "github.com/avito-tech/go-transaction-manager/drivers/pgxv5/v2"
+	"github.com/avito-tech/go-transaction-manager/trm/v2/manager"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
+=======
+>>>>>>> main
 )
 
 func parseLogLevel(level string) slog.Level {
@@ -53,13 +62,16 @@ func main() {
 	}))
 
 	// ======================
-	// 3. Connect to Postgres
+	// 3. Connect to Postgres (create pool here so we can pass it to transaction manager)
 	// ======================
-	db, err := adapterdb.NewPostgres(cfg.DatabaseDSN)
+	pool, err := pgxpool.New(context.Background(), cfg.DatabaseDSN)
 	if err != nil {
 		logger.Error("failed to connect db", slog.Any("err", err))
 		os.Exit(1)
 	}
+
+	pg := stdlib.OpenDBFromPool(pool)
+	db := sqlx.NewDb(pg, "pgx")
 
 	txManager := adapterdb.NewTransactionManager(db)
 
