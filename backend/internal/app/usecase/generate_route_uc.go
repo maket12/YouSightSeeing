@@ -39,6 +39,10 @@ const (
 	minCandidateScore = 0.05
 )
 
+// Weight for crowd-derived place conversion (how strongly global conversion affects base score)
+const placeConversionWeight = 0.18
+
+
 type GenerateRouteUC struct {
 	searchPlacesUC   SearchPlacesUseCase
 	calculateUC      CalculateRouteUseCase
@@ -108,11 +112,58 @@ func (uc *GenerateRouteUC) Execute(
 		return dto.GenerateRouteResponse{}, err
 	}
 
+	// prepare global place conversion map (crowd signal)
+	placeConversionMap := make(map[string]float64)
+	if uc.userEventRepo != nil {
+		placeIDs := make([]string, 0, len(searchResp.Places))
+		seen := make(map[string]struct{})
+		for _, p := range searchResp.Places {
+			if p.PlaceID == "" {
+				continue
+			}
+			if _, ok := seen[p.PlaceID]; ok {
+				continue
+			}
+			seen[p.PlaceID] = struct{}{}
+			placeIDs = append(placeIDs, p.PlaceID)
+		}
+
+		if len(placeIDs) > 0 {
+			if statsMap, err := uc.userEventRepo.GetGlobalStatsByPlaceIDs(ctx, placeIDs); err == nil {
+				// compute Laplace-smoothed conversions for known places and their average
+				tmp := make(map[string]float64)
+				var sum float64
+				var cnt int
+				for _, pid := range placeIDs {
+					if s, ok := statsMap[pid]; ok {
+						conv := float64(s.SavedCount+1) / float64(s.GeneratedCount+2)
+						tmp[pid] = conv
+						sum += conv
+						cnt++
+					}
+				}
+				avg := 0.0
+				if cnt > 0 {
+					avg = sum / float64(cnt)
+				}
+				for _, pid := range placeIDs {
+					if conv, ok := tmp[pid]; ok {
+						placeConversionMap[pid] = conv
+					} else {
+						placeConversionMap[pid] = avg
+					}
+				}
+			}
+		}
+	}
+
 	candidates := buildRecommendationCandidates(
 		searchResp.Places,
 		requestedCategories,
 		preferenceWeights,
 		placeScoreAdjustments,
+		placeConversionMap,
+		placeConversionWeight,
 		req.StartLat,
 		req.StartLon,
 		req.Radius,
@@ -195,6 +246,8 @@ func buildRecommendationCandidates(
 	requestedCategories []string,
 	preferenceWeights map[string]float64,
 	placeScoreAdjustments map[string]float64,
+	placeConversion map[string]float64,
+	conversionWeight float64,
 	startLat float64,
 	startLon float64,
 	radius int,
@@ -233,10 +286,15 @@ func buildRecommendationCandidates(
 			continue
 		}
 
+
 		baseScore := computeBaseScore(place, preferenceWeights, startLat, startLon, radius, isFood)
 
 		if place.PlaceID != "" {
 			baseScore += placeScoreAdjustments[place.PlaceID]
+
+			if pc, ok := placeConversion[place.PlaceID]; ok && conversionWeight > 0 {
+				baseScore += conversionWeight * pc
+			}
 		}
 
 		if baseScore < minCandidateScore {

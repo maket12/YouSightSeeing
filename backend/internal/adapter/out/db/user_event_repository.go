@@ -2,6 +2,7 @@ package db
 
 import (
 	"YouSightSeeing/backend/internal/domain/entity"
+	"YouSightSeeing/backend/internal/domain/port"
 	"context"
 	"fmt"
 
@@ -76,4 +77,49 @@ func (r *UserEventRepository) GetRecentByUserID(
 	}
 
 	return events, nil
+}
+
+func (r *UserEventRepository) GetGlobalStatsByPlaceIDs(
+	ctx context.Context,
+	placeIDs []string,
+) (map[string]port.PlaceGlobalStats, error) {
+	if len(placeIDs) == 0 {
+		return map[string]port.PlaceGlobalStats{}, nil
+	}
+
+	query := `
+		SELECT place_id,
+			   SUM(CASE WHEN event_type = 'route_generated' THEN 1 ELSE 0 END) AS generated_count,
+			   SUM(CASE WHEN event_type = 'route_saved' THEN 1 ELSE 0 END) AS saved_count
+		FROM user_events
+		WHERE place_id = ANY($1)
+		GROUP BY place_id
+	`
+
+	rows, err := r.db.QueryxContext(ctx, query, placeIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query global place stats: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]port.PlaceGlobalStats)
+
+	for rows.Next() {
+		var placeID string
+		var generated int
+		var saved int
+		if err := rows.Scan(&placeID, &generated, &saved); err != nil {
+			return nil, fmt.Errorf("failed to scan global place stats row: %w", err)
+		}
+		result[placeID] = port.PlaceGlobalStats{
+			GeneratedCount: generated,
+			SavedCount:     saved,
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error while reading global place stats: %w", err)
+	}
+
+	return result, nil
 }

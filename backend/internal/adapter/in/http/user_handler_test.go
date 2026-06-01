@@ -90,7 +90,7 @@ func TestUH_GetMe(t *testing.T) {
 			UCErr:      uc_errors.Wrap(uc_errors.GetUserError, errors.New("db failed")),
 			WantStatus: http.StatusInternalServerError,
 			WantBody: map[string]interface{}{
-				"error": "failed to get user",
+				"error": uc_errors.GetUserError.Error(),
 			},
 		},
 		{
@@ -239,7 +239,7 @@ func TestUH_UpdateMe(t *testing.T) {
 			UCErr:      uc_errors.Wrap(uc_errors.GetUserError, errors.New("db failed")),
 			WantStatus: http.StatusInternalServerError,
 			WantBody: map[string]interface{}{
-				"error": "failed to get user",
+				"error": uc_errors.GetUserError.Error(),
 			},
 		},
 		{
@@ -433,7 +433,7 @@ func TestUH_UpdateMePicture(t *testing.T) {
 			UCErr:      uc_errors.Wrap(uc_errors.GetUserError, errors.New("db failed")),
 			WantStatus: http.StatusInternalServerError,
 			WantBody: map[string]interface{}{
-				"error": "failed to get user",
+				"error": uc_errors.GetUserError.Error(),
 			},
 		},
 		{
