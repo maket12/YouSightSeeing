@@ -130,12 +130,27 @@ func (uc *GenerateRouteUC) Execute(
 
 		if len(placeIDs) > 0 {
 			if statsMap, err := uc.userEventRepo.GetGlobalStatsByPlaceIDs(ctx, placeIDs); err == nil {
+				// compute Laplace-smoothed conversions for known places and their average
+				tmp := make(map[string]float64)
+				var sum float64
+				var cnt int
 				for _, pid := range placeIDs {
 					if s, ok := statsMap[pid]; ok {
-						// simple Laplace-style smoothing to avoid 1/1 artifacts
-						placeConversionMap[pid] = float64(s.SavedCount+1) / float64(s.GeneratedCount+2)
+						conv := float64(s.SavedCount+1) / float64(s.GeneratedCount+2)
+						tmp[pid] = conv
+						sum += conv
+						cnt++
+					}
+				}
+				avg := 0.0
+				if cnt > 0 {
+					avg = sum / float64(cnt)
+				}
+				for _, pid := range placeIDs {
+					if conv, ok := tmp[pid]; ok {
+						placeConversionMap[pid] = conv
 					} else {
-						placeConversionMap[pid] = 0.0
+						placeConversionMap[pid] = avg
 					}
 				}
 			}
