@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Recommendation Score Comparison</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; background:#f7f9fb }
+    table { border-collapse: collapse; width: 720px; background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.08)}
+    th, td { padding: 10px 14px; border-bottom: 1px solid #e6eef6 }
+    th { background: #0b69ff; color: white; text-align: left }
+    tr:nth-child(even) td { background: #fbfdff }
+    .delta { font-weight: 600 }
+    .positive { color: #10712a }
+    .neutral { color: #333 }
+  </style>
+</head>
+<body>
+  <h2>Recommendation Score Comparison — Было / Стало</h2>
+  <table>
+    <thead>
+      <tr><th>Place</th><th>Old Score</th><th>New Score</th><th>Delta</th></tr>
+    </thead>
+    <tbody>
+    
+      <tr>
+        <td>p1</td>
+        <td>1.350000</td>
+        <td>1.458000</td>
+        <td class="delta positive">0.108000</td>
+      </tr>
+    
+      <tr>
+        <td>p2</td>
+        <td>1.286701</td>
+        <td>1.304701</td>
+        <td class="delta positive">0.018000</td>
+      </tr>
+    
+      <tr>
+        <td>Place NoID</td>
+        <td>1.273402</td>
+        <td>1.273402</td>
+        <td class="delta neutral">0.000000</td>
+      </tr>
+    
+    </tbody>
+  </table>
+</body>
+</html>
